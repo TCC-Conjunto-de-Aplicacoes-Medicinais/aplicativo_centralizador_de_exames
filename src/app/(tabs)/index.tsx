@@ -2,6 +2,7 @@ import * as Device from 'expo-device';
 import React, { useState } from 'react';
 import { Button, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 import { AnimatedIcon } from '@/components/animated-icon';
 import { HintRow } from '@/components/hint-row';
@@ -32,6 +33,7 @@ function getDevMenuHint() {
 
 export default function HomeScreen() {
   const [showSecurity, setShowSecurity] = useState(false);
+  const router = useRouter();
 
   if (showSecurity) {
     return (
@@ -45,12 +47,6 @@ export default function HomeScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
 
         <ThemedText type="code" style={styles.code}>
           get started
@@ -67,10 +63,17 @@ export default function HomeScreen() {
             hint={<ThemedText type="code">npm run reset-project</ThemedText>}
           />
           <Button
-            title="Pinto"
+            title="Test Security"
             onPress={() => {
               console.log('👉 button pressed, switching to TestSecurity');
               setShowSecurity(true);
+            }}
+          />
+          <Button
+            title="Novo Fluxo de Exames"
+            onPress={() => {
+              console.log('👉 navigating to new exam flow');
+              router.push('/exam-flow/home');
             }}
           />
           {/* fallback:  */}
@@ -101,6 +104,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.three,
     paddingBottom: BottomTabInset + Spacing.three,
+    paddingTop: Spacing.four,
     maxWidth: MaxContentWidth,
   },
   heroSection: {
