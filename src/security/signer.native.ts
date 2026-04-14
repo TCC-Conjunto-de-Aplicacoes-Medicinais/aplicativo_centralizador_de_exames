@@ -4,11 +4,10 @@ import ReactNativeBiometrics from 'react-native-biometrics';
 const rnBiometrics = new ReactNativeBiometrics({ allowDeviceCredentials: true });
 
 const fallbackSignature = async (payload: string) => {
-  const defaultSignature = await Crypto.digestStringAsync(
+  return await Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
-    `${payload}:${Date.now()}`
+    payload
   );
-  return defaultSignature;
 };
 
 export const createKeys = async () => {
@@ -16,7 +15,7 @@ export const createKeys = async () => {
     const { keysExist } = await rnBiometrics.biometricKeysExist();
 
     if (!keysExist) {
-      await rnBiometrics.createKeys();
+      return await rnBiometrics.createKeys();
     }
 
     const { publicKey } = await rnBiometrics.createKeys();
@@ -29,20 +28,18 @@ export const createKeys = async () => {
 
 export const sign = async (payload: string) => {
   try {
-    const signResult = await rnBiometrics.createSignature({
-      payload,
+    const promptResult = await rnBiometrics.simplePrompt({
       promptMessage: 'Autentique-se para assinar',
       cancelButtonText: 'Cancelar',
     });
 
-    if (signResult.success && signResult.signature) {
-      return signResult.signature;
+    if (promptResult.success) {
+      return fallbackSignature(payload);
     }
 
-    console.warn('[signer.native] createSignature retornou falha, usando assinatura local de fallback (sem prompt adicional):', signResult.error);
-    return fallbackSignature(payload);
+    throw new Error('Autenticação cancelada.');
   } catch (err) {
-    console.warn('[signer.native] createSignature lançando erro, usando assinatura local de fallback (sem prompt adicional):', err);
-    return fallbackSignature(payload);
+    console.warn('[signer.native] simplePrompt falhou:', err);
+    throw err;
   }
 };
