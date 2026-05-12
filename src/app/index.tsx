@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -27,7 +27,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Code2 } from 'lucide-react-native';
 
-import { login } from '@/services/auth';
+import { login, getToken } from '@/services/auth';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -35,10 +35,33 @@ export default function LoginScreen() {
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const passwordRef = useRef<TextInput>(null);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  // --- Auto-login: tenta restaurar sessão ao abrir o app ---
+  useEffect(() => {
+    const tryAutoLogin = async () => {
+      try {
+        console.log('[AUTH] Verificando sessão existente...');
+        const token = await getToken();
+        if (token) {
+          console.log('[AUTH] Sessão válida encontrada, redirecionando...');
+          router.replace('/exam-flow/home');
+          return;
+        }
+        console.log('[AUTH] Nenhuma sessão válida encontrada.');
+      } catch (err) {
+        console.log('[AUTH] Erro ao verificar sessão:', err);
+      } finally {
+        setIsCheckingSession(false);
+      }
+    };
+
+    tryAutoLogin();
+  }, []);
 
   // Animação de shake no erro
   const errorShake = useSharedValue(0);
@@ -108,6 +131,32 @@ export default function LoginScreen() {
   const handleDevAccess = () => {
     router.push('/dev-home');
   };
+
+  // Tela de carregamento enquanto verifica a sessão
+  if (isCheckingSession) {
+    return (
+      <LinearGradient
+        colors={['#059669', '#0d9488', '#0f766e']}
+        locations={[0, 0.5, 1]}
+        style={styles.gradient}
+      >
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <View style={styles.logoContainer}>
+            <Image
+              source={require('@/assets/images/logo-glow.png')}
+              style={styles.logo}
+              contentFit="contain"
+            />
+          </View>
+          <ActivityIndicator color="#ffffff" size="large" style={{ marginTop: 24 }} />
+          <Text style={{ color: 'rgba(255,255,255,0.7)', marginTop: 12, fontSize: 14 }}>
+            Verificando sessão...
+          </Text>
+        </View>
+      </LinearGradient>
+    );
+  }
 
   return (
     <LinearGradient

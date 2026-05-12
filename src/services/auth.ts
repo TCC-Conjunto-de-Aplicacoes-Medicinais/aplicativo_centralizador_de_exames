@@ -3,6 +3,11 @@
  *
  * Gerencia signup, login, refresh, logout, e armazenamento seguro de tokens.
  * Integra com o módulo DPoP para proof-of-possession.
+ *
+ * O refresh token é tratado de forma transparente:
+ *   - getToken() renova automaticamente quando o access_token expira.
+ *   - authenticatedRequest() faz retry automático com novo token se receber 401.
+ *   - Um mutex garante que apenas UM refresh execute por vez (evita race conditions).
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -43,6 +48,9 @@ export interface SignupResponse {
 export interface AuthError {
   error: string;
 }
+
+// --- Mutex para refresh (evita race conditions) ---
+let refreshPromise: Promise<RefreshResponse> | null = null;
 
 // --- Funções principais ---
 
@@ -130,6 +138,8 @@ export async function login(email: string, password: string): Promise<LoginRespo
       AsyncStorage.setItem(TOKEN_EXPIRY_KEY, expiresAt.toString()),
     ]);
 
+    console.log('[AUTH] Login realizado. Token expira em', loginData.expires_in, 'segundos');
+
     return loginData;
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
@@ -143,15 +153,40 @@ export async function login(email: string, password: string): Promise<LoginRespo
 /**
  * Renova o access token usando o refresh token.
  *
+ * Usa um mutex (refreshPromise) para garantir que apenas uma chamada
+ * de refresh ocorra por vez. Chamadas simultâneas reutilizam a mesma Promise.
+ *
  * @throws Error se não houver refresh token ou se a renovação falhar
  */
 export async function refresh(): Promise<RefreshResponse> {
+  // Se já existe um refresh em andamento, reutiliza a Promise
+  if (refreshPromise) {
+    console.log('[AUTH] Refresh já em andamento, reutilizando...');
+    return refreshPromise;
+  }
+
+  // Cria a Promise e armazena no mutex
+  refreshPromise = _doRefresh();
+
+  try {
+    return await refreshPromise;
+  } finally {
+    // Limpa o mutex ao finalizar (sucesso ou erro)
+    refreshPromise = null;
+  }
+}
+
+/**
+ * Execução interna do refresh (chamada apenas pelo mutex).
+ */
+async function _doRefresh(): Promise<RefreshResponse> {
   const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
 
   if (!refreshToken) {
     throw new Error('Nenhum refresh token disponível');
   }
 
+  console.log('[AUTH] Iniciando refresh do token...');
   const dpopProof = await createDPoPProof('POST', REFRESH_ENDPOINT);
 
   try {
@@ -171,14 +206,17 @@ export async function refresh(): Promise<RefreshResponse> {
     await Promise.all([
       AsyncStorage.setItem(ACCESS_TOKEN_KEY, refreshData.access_token),
       AsyncStorage.setItem(TOKEN_EXPIRY_KEY, expiresAt.toString()),
-      // Atualiza refresh token se vier um novo
+      // Atualiza refresh token se vier um novo (Keycloak geralmente rotaciona)
       refreshData.refresh_token
         ? AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshData.refresh_token)
         : Promise.resolve(),
     ]);
 
+    console.log('[AUTH] Refresh concluído. Novo token expira em', refreshData.expires_in, 'segundos');
+
     return refreshData;
   } catch (err) {
+    console.log('[AUTH] Falha no refresh, realizando logout...');
     // Se refresh falhar, limpa tudo (sessão inválida)
     await logout();
     if (axios.isAxiosError(err) && err.response) {
@@ -199,10 +237,15 @@ export async function logout(): Promise<void> {
     AsyncStorage.removeItem(TOKEN_EXPIRY_KEY),
     clearDPoPKeys(),
   ]);
+  console.log('[AUTH] Logout realizado, tokens limpos.');
 }
 
 /**
  * Retorna o access token armazenado, ou null se não existir/expirado.
+ * Se o token estiver expirado, tenta renovar automaticamente.
+ *
+ * Aplica uma margem de segurança de 30 segundos para evitar usar
+ * um token que está prestes a expirar.
  */
 export async function getToken(): Promise<string | null> {
   const [token, expiryStr] = await Promise.all([
@@ -213,8 +256,11 @@ export async function getToken(): Promise<string | null> {
   if (!token || !expiryStr) return null;
 
   const expiresAt = parseInt(expiryStr, 10);
-  if (Date.now() >= expiresAt) {
-    // Token expirado — tenta refresh
+  const SAFETY_MARGIN_MS = 30 * 1000; // 30 segundos de margem
+
+  if (Date.now() >= expiresAt - SAFETY_MARGIN_MS) {
+    // Token expirado ou prestes a expirar — tenta refresh
+    console.log('[AUTH] Token expirado/prestes a expirar, tentando refresh...');
     try {
       await refresh();
       return AsyncStorage.getItem(ACCESS_TOKEN_KEY);
@@ -238,8 +284,40 @@ export async function isAuthenticated(): Promise<boolean> {
  * Faz uma requisição autenticada com DPoP.
  * Adiciona automaticamente o header Authorization com DPoP token
  * e o header DPoP com um novo proof.
+ *
+ * Se a requisição falhar com 401 (token expirado entre getToken e a request),
+ * tenta renovar o token e refaz a requisição automaticamente (1 retry).
  */
 export async function authenticatedRequest<T = any>(
+  url: string,
+  options: AxiosRequestConfig = {},
+): Promise<T> {
+  // Primeira tentativa
+  try {
+    return await _executeAuthenticatedRequest<T>(url, options);
+  } catch (err) {
+    // Se recebeu 401, tenta refresh e retry
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      console.log('[AUTH] Requisição retornou 401, tentando refresh + retry...');
+      try {
+        await refresh();
+        // Retry com o novo token
+        return await _executeAuthenticatedRequest<T>(url, options);
+      } catch (retryErr) {
+        // Se o retry também falhar, propaga o erro
+        console.log('[AUTH] Retry após refresh falhou.');
+        throw retryErr;
+      }
+    }
+    throw err;
+  }
+}
+
+/**
+ * Executa uma requisição autenticada com DPoP (sem retry).
+ * Usada internamente por authenticatedRequest.
+ */
+async function _executeAuthenticatedRequest<T = any>(
   url: string,
   options: AxiosRequestConfig = {},
 ): Promise<T> {

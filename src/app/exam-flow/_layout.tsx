@@ -4,7 +4,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
-import { Bell, ArrowLeft, Key } from 'lucide-react-native';
+import { Bell, ArrowLeft, Key, Settings } from 'lucide-react-native';
 
 // Importações do seu projeto
 import { AppProvider, useApp } from '@/context/AppContext';
@@ -12,11 +12,13 @@ import { AppProvider, useApp } from '@/context/AppContext';
 
 // --- COMPONENTE DO CABEÇALHO CUSTOMIZADO ---
 function CustomHeader({ route, navigation }: any) {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { unreadCount } = useApp(); // Pegando o contexto
   const [showTransition, setShowTransition] = useState(false);
 
   const isHomePage = route.name === 'home';
+  const isSettingsPage = route.name === 'settings';
   const showBackButton = !isHomePage;
 
   // Lógica da animação de 10 segundos na Home
@@ -31,6 +33,10 @@ function CustomHeader({ route, navigation }: any) {
 
   const handleAuthenticator = () => {
     Alert.alert('Autenticador', 'Gerar código de acesso seguro');
+  };
+
+  const handleSettings = () => {
+    router.push('/exam-flow/settings');
   };
 
   // Animação da primeira mensagem saindo para cima
@@ -97,27 +103,35 @@ function CustomHeader({ route, navigation }: any) {
             </>
           ) : (
             <View style={styles.staticTitleContainer}>
-              <Text style={styles.titleTextDark}>Detalhes do Exame</Text>
+              <Text style={styles.titleTextDark}>
+                {isSettingsPage ? 'Configurações' : 'Detalhes do Exame'}
+              </Text>
             </View>
           )}
         </View>
       </View>
 
-      {/* Lado Direito (Ações) */}
-      <View style={styles.actionsSection}>
-        <TouchableOpacity onPress={handleAuthenticator} style={styles.actionButton}>
-          <Key color={isHomePage ? '#ffffff' : '#334155'} size={24} />
-        </TouchableOpacity>
+      {/* Lado Direito (Ações) — oculto na tela de Configurações */}
+      {!isSettingsPage && (
+        <View style={styles.actionsSection}>
+          <TouchableOpacity onPress={handleAuthenticator} style={styles.actionButton}>
+            <Key color={isHomePage ? '#ffffff' : '#334155'} size={24} />
+          </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => {/* setNotificationOpen(true) */}} style={styles.actionButton}>
-          <Bell color={isHomePage ? '#ffffff' : '#334155'} size={24} />
-          {unreadCount > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity onPress={() => {/* setNotificationOpen(true) */}} style={styles.actionButton}>
+            <Bell color={isHomePage ? '#ffffff' : '#334155'} size={24} />
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={handleSettings} style={styles.actionButton}>
+            <Settings color={isHomePage ? '#ffffff' : '#334155'} size={24} />
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 
@@ -155,6 +169,7 @@ export default function ExamFlowLayout() {
       >
         <Stack.Screen name="home" />
         <Stack.Screen name="exam/[id]" />
+        <Stack.Screen name="settings" />
       </Stack>
 
       {/* Placeholder para o Painel de Notificações nativo (Modal/BottomSheet) */}
