@@ -1,4 +1,7 @@
 import React, { useState, useRef } from 'react';
+import { useApp } from '@/context/AppContext';
+import { useTheme, ThemeColors } from '@/context/ThemeContext';
+import { useCustomAlert } from '@/context/AlertContext';
 import {
   View,
   Text,
@@ -11,6 +14,8 @@ import {
   ActivityIndicator,
   Keyboard,
   Platform,
+  Modal,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -31,11 +36,13 @@ import {
   LogOut,
   FileText,
   HelpCircle,
+  Mail,
+  X,
 } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { authenticatedRequest, logout } from '@/services/auth';
+import { authenticatedRequest, logout, refresh } from '@/services/auth';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 const ACCESS_TOKEN_KEY = '@auth_access_token';
@@ -70,8 +77,12 @@ function base64Decode(input: string): string {
     if (b64[i + 3] !== '=') bytes.push(((c & 3) << 6) | d);
   }
 
-  // Decodifica UTF-8 bytes para string
-  return String.fromCharCode(...bytes);
+  // Decodifica bytes para string (loop para evitar limite de argumentos do Hermes)
+  let result = '';
+  for (let i = 0; i < bytes.length; i++) {
+    result += String.fromCharCode(bytes[i]);
+  }
+  return result;
 }
 
 /**
@@ -110,6 +121,8 @@ function formatPhone(raw: string): string {
 // --- Componentes auxiliares ---
 
 function SectionHeader({ icon: Icon, title, delay = 0 }: { icon: any; title: string; delay?: number }) {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   return (
     <Animated.View entering={FadeInDown.delay(delay).duration(500)} style={styles.sectionHeader}>
       <View style={styles.sectionIconContainer}>
@@ -126,6 +139,7 @@ function SettingRow({
   value,
   onPress,
   showChevron = true,
+  showBadge = false,
   delay = 0,
 }: {
   icon: any;
@@ -133,8 +147,11 @@ function SettingRow({
   value?: string;
   onPress?: () => void;
   showChevron?: boolean;
+  showBadge?: boolean;
   delay?: number;
 }) {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   return (
     <Animated.View entering={FadeInDown.delay(delay).duration(400)}>
       <TouchableOpacity
@@ -146,6 +163,7 @@ function SettingRow({
         <View style={styles.settingRowLeft}>
           <View style={styles.settingRowIcon}>
             <Icon color="#64748b" size={20} />
+            {showBadge && <View style={styles.settingRowBadge} />}
           </View>
           <Text style={styles.settingRowLabel}>{label}</Text>
         </View>
@@ -171,6 +189,8 @@ function SettingToggleRow({
   onValueChange: (val: boolean) => void;
   delay?: number;
 }) {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   return (
     <Animated.View entering={FadeInDown.delay(delay).duration(400)}>
       <View style={styles.settingRow}>
@@ -197,6 +217,7 @@ function SettingToggleRow({
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { emailVerified, givenName, email, refreshEmailStatus } = useApp();
 
   // --- Estado dos campos da conta (UpdateUserRequest) ---
   const [name, setName] = useState('');
@@ -204,13 +225,43 @@ export default function SettingsScreen() {
   const [address, setAddress] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+
+  // Busca os dados do perfil do backend ao montar a tela
+  React.useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const profileUrl = `${API_BASE_URL}/api/users/profile`;
+        const data = await authenticatedRequest(profileUrl, { method: 'GET' });
+        if (data.name) setName(data.name);
+        if (data.phone) setPhone(formatPhone(data.phone));
+        if (data.address) setAddress(data.address);
+      } catch (err: any) {
+        console.log('[SETTINGS] Erro ao buscar perfil:', err?.message);
+        // Fallback: usa o givenName do JWT se disponível
+        if (givenName && givenName !== 'Usuário') {
+          setName(givenName);
+        }
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   // --- Estados das configurações gerais ---
   const [pushNotifications, setPushNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(false);
   const [examReminders, setExamReminders] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
   const [biometricLock, setBiometricLock] = useState(false);
+  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const styles = getStyles(theme);
+  const { showAlert } = useCustomAlert();
+
+  // Estados para as políticas e termos
+  const [legalModalVisible, setLegalModalVisible] = useState(false);
+  const [legalModalTitle, setLegalModalTitle] = useState('');
+  const [legalModalContent, setLegalModalContent] = useState<React.ReactNode | null>(null);
 
   // Refs para navegação entre campos
   const phoneRef = useRef<TextInput>(null);
@@ -224,7 +275,7 @@ export default function SettingsScreen() {
     const cleanPhone = phone.replace(/\D/g, '');
 
     if (!name.trim() && !cleanPhone && !address.trim()) {
-      Alert.alert('Atenção', 'Preencha pelo menos um campo para atualizar.');
+      showAlert('Atenção', 'Preencha pelo menos um campo para atualizar.');
       return;
     }
 
@@ -234,23 +285,29 @@ export default function SettingsScreen() {
       // Extrai o 'sub' (Keycloak ID) do JWT armazenado
       const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
       if (!token) {
-        Alert.alert('Sessão expirada', 'Faça login novamente para continuar.');
+        showAlert('Sessão expirada', 'Faça login novamente para continuar.');
         return;
       }
 
       const payload = decodeJwtPayload(token);
       const userId = payload?.sub;
       if (!userId) {
-        Alert.alert('Erro', 'Não foi possível identificar o usuário.');
+        showAlert('Erro', 'Não foi possível identificar o usuário.');
         return;
       }
 
-      const updateUrl = `${API_BASE_URL}/api/users/${userId}`;
+      // O backend mapeia a rota PUT /users sob o grupo /api e infere o ID do token de autenticação
+      const updateUrl = `${API_BASE_URL}/api/users`;
 
-      const body: Record<string, string> = {};
+      // Estrutura o body de acordo com models.UpdateUserRequest do backend
+      const body: any = {};
       if (name.trim()) body.name = name.trim();
-      if (cleanPhone) body.phone = cleanPhone;
-      if (address.trim()) body.address = address.trim();
+      if (cleanPhone) {
+        body.phones = [{ phone: cleanPhone, principal: true }];
+      }
+      if (address.trim()) {
+        body.addresses = [{ address: address.trim(), principal: true }];
+      }
 
       await authenticatedRequest(updateUrl, {
         method: 'PUT',
@@ -258,18 +315,41 @@ export default function SettingsScreen() {
         headers: { 'Content-Type': 'application/json' },
       });
 
-      Alert.alert('Sucesso ✅', 'Seus dados foram atualizados com sucesso!');
+      // Atualiza o token local e recarrega os dados para sincronizar o nome atualizado do Keycloak
+      try {
+        await refresh();
+        await refreshEmailStatus();
+      } catch (refreshErr) {
+        console.log('[UPDATE PROFILE REFRESH TOKEN ERROR]', refreshErr);
+      }
+
+      showAlert('Sucesso ✅', 'Seus dados foram atualizados com sucesso!');
       setEditMode(false);
     } catch (err: any) {
-      // Extrai a mensagem real do backend (ex: err.response.data.error)
+      // Log detalhado para depurar o erro 404
+      console.log('[DEBUG UPDATE USER ERROR DETAILS]');
+      if (err?.config) {
+        console.log('Request URL:', err.config.url);
+        console.log('Request Method:', err.config.method);
+        console.log('Request Data:', err.config.data);
+        console.log('Request Headers:', JSON.stringify(err.config.headers, null, 2));
+      }
+      if (err?.response) {
+        console.log('Response Status:', err.response.status);
+        console.log('Response Headers:', JSON.stringify(err.response.headers, null, 2));
+        console.log('Response Data:', JSON.stringify(err.response.data, null, 2));
+      } else {
+        console.log('Error Message:', err.message);
+        console.log('Full Error Object:', JSON.stringify(err, null, 2));
+      }
+
       const backendMsg = err?.response?.data?.error;
       const message = backendMsg || err?.message || 'Erro ao atualizar dados';
-      console.log('[UPDATE USER ERROR]', message, err?.response?.status);
 
       if (message.includes('Não autenticado')) {
-        Alert.alert('Sessão expirada', 'Faça login novamente para continuar.');
+        showAlert('Sessão expirada', 'Faça login novamente para continuar.');
       } else {
-        Alert.alert('Erro', message);
+        showAlert('Erro', `${message} (Status: ${err?.response?.status || 'N/A'})`);
       }
     } finally {
       setIsSaving(false);
@@ -277,11 +357,34 @@ export default function SettingsScreen() {
   };
 
   const handleChangePassword = () => {
-    Alert.alert('Alterar Senha', 'Funcionalidade em desenvolvimento.');
+    showAlert('Alterar Senha', 'Funcionalidade em desenvolvimento.');
+  };
+
+  const handleConfirmEmail = async () => {
+    try {
+      const verifyUrl = `${API_BASE_URL}/api/users/send-verify-email`;
+
+      await authenticatedRequest(verifyUrl, {
+        method: 'POST',
+      });
+
+      // Sucesso — navega para a tela de verificação de código
+      router.push('/exam-flow/verify-email-code');
+    } catch (err: any) {
+      const backendMsg = err?.response?.data?.error;
+      const message = backendMsg || err?.message || 'Erro ao enviar e-mail de verificação';
+      console.log('[VERIFY EMAIL ERROR]', message);
+
+      if (message.includes('Não autenticado') || message.includes('token inválido')) {
+        showAlert('Sessão expirada', 'Faça login novamente para continuar.');
+      } else {
+        showAlert('Erro', message);
+      }
+    }
   };
 
   const handleLogout = () => {
-    Alert.alert(
+    showAlert(
       'Sair da conta',
       'Tem certeza que deseja sair? Você precisará fazer login novamente.',
       [
@@ -304,20 +407,111 @@ export default function SettingsScreen() {
     );
   };
 
+  const renderPrivacyPolicy = () => (
+    <View style={{ gap: 16 }}>
+      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>1. Introdução</Text>
+      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
+        Esta Política de Privacidade descreve como o Centralizador de Exames (Conjunto de Aplicações Medicinais) coleta, usa, armazena e protege os dados pessoais e clínicos dos usuários. Ao utilizar o aplicativo, você concorda com as práticas descritas neste documento.
+      </Text>
+
+      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>2. Coleta de Dados</Text>
+      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
+        Coletamos informações necessárias para a prestação dos serviços de centralização médica, incluindo:
+      </Text>
+      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20, paddingLeft: 8 }}>
+        • Dados Cadastrais: Nome completo, endereço de e-mail, número de telefone e endereço residencial.{"\n"}
+        • Dados de Saúde: Laudos de exames laboratoriais e de imagem, históricos médicos e notas clínicas inseridas ou importadas pelo usuário.
+      </Text>
+
+      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>3. Segurança da Informação</Text>
+      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
+        Adotamos medidas rigorosas de segurança, como criptografia de ponta a ponta no armazenamento e tráfego dos dados, controle de acesso baseado no Keycloak e monitoramento constante contra acessos não autorizados. Os dados clínicos são de sua propriedade exclusiva.
+      </Text>
+
+      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>4. Seus Direitos (LGPD)</Text>
+      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
+        Em conformidade com a Lei Geral de Proteção de Dados (LGPD), você tem o direito de confirmar a existência de tratamento de seus dados, acessar seus registros, solicitar a correção de dados incompletos ou inexatos, e requerer a exclusão permanente de sua conta e histórico médico do nosso banco de dados a qualquer momento.
+      </Text>
+
+      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>5. Contato e Suporte</Text>
+      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
+        Para exercer seus direitos de privacidade ou esclarecer dúvidas, envie uma mensagem para o nosso Encarregado de Proteção de Dados (DPO) pelo e-mail:
+        {"\n"}
+        <Text style={{ fontWeight: '600', color: '#0d9488' }}>conjuntoaplicacoemedicinais@gmail.com</Text>
+      </Text>
+    </View>
+  );
+
+  const renderTermsOfUse = () => (
+    <View style={{ gap: 16 }}>
+      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>1. Aceitação dos Termos</Text>
+      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
+        Ao criar uma conta ou utilizar os serviços do Centralizador de Exames, você concorda em cumprir e estar legalmente vinculado a estes Termos de Uso. Caso não concorde, por favor, não utilize a plataforma.
+      </Text>
+
+      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>2. Descrição dos Serviços</Text>
+      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
+        O aplicativo funciona como um agregador pessoal de registros e exames médicos. Ele facilita a organização, visualização e o compartilhamento seguro de exames diretamente entre você e os seus profissionais de saúde de confiança.
+      </Text>
+
+      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.danger }}>3. Isenção de Responsabilidade Médica</Text>
+      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20, fontWeight: '600' }}>
+        ATENÇÃO: O Centralizador de Exames NÃO presta serviços de aconselhamento médico, diagnóstico ou tratamento. O aplicativo é uma ferramenta de suporte organizacional. Nenhuma informação contida na plataforma deve substituir a consulta com um médico qualificado. Sempre consulte seu médico antes de tomar decisões com base em laudos.
+      </Text>
+
+      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>4. Uso Aceitável e Responsabilidade do Usuário</Text>
+      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
+        Você é responsável por manter a confidencialidade das credenciais de sua conta e por todas as atividades realizadas sob sua autenticação. É proibido fazer upload de conteúdo que viole a legislação vigente, que pertença a terceiros sem autorização ou que contenha códigos maliciosos.
+      </Text>
+
+      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>5. Propriedade Intelectual</Text>
+      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
+        Todos os direitos de propriedade intelectual relacionados ao software do aplicativo, marcas, design e código-fonte pertencem ao Conjunto de Aplicações Medicinais. Você recebe uma licença de uso limitada, não exclusiva e revogável apenas para fins pessoais.
+      </Text>
+
+      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>6. Suporte</Text>
+      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
+        Em caso de dúvidas sobre as regras de utilização, entre em contato através do canal de atendimento ao usuário:
+        {"\n"}
+        <Text style={{ fontWeight: '600', color: '#0d9488' }}>conjuntoaplicacoemedicinais@gmail.com</Text>
+      </Text>
+    </View>
+  );
+
   const handlePrivacyPolicy = () => {
-    Alert.alert('Política de Privacidade', 'Documento em preparação.');
+    setLegalModalTitle('Política de Privacidade');
+    setLegalModalContent(renderPrivacyPolicy());
+    setLegalModalVisible(true);
   };
 
   const handleTerms = () => {
-    Alert.alert('Termos de Uso', 'Documento em preparação.');
+    setLegalModalTitle('Termos de Uso');
+    setLegalModalContent(renderTermsOfUse());
+    setLegalModalVisible(true);
   };
 
   const handleSupport = () => {
-    Alert.alert('Suporte', 'Entre em contato: suporte@centralizador.com');
+    showAlert(
+      'Suporte Técnico',
+      'E-mail: conjuntoaplicacoemedicinais@gmail.com\n\nDeseja enviar um e-mail para nossa equipe de suporte agora?',
+      [
+        { text: 'Voltar', style: 'cancel' },
+        {
+          text: 'Enviar E-mail',
+          onPress: () => {
+            Linking.openURL('mailto:conjuntoaplicacoemedicinais@gmail.com').catch((err) => {
+              console.log('Error opening mail client', err);
+              showAlert('Erro', 'Não foi possível abrir o aplicativo de e-mail.');
+            });
+          }
+        }
+      ]
+    );
   };
 
   return (
-    <ScrollView
+    <>
+      <ScrollView
       style={styles.container}
       contentContainerStyle={[
         styles.scrollContent,
@@ -333,12 +527,20 @@ export default function SettingsScreen() {
         <View style={styles.profileHeader}>
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarText}>
-              {name ? name.charAt(0).toUpperCase() : 'U'}
+              {name ? name.charAt(0).toUpperCase() : (givenName !== 'Usuário' ? givenName.charAt(0).toUpperCase() : 'U')}
             </Text>
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{name || 'Seu Nome'}</Text>
-            <Text style={styles.profileSubtext}>Toque em editar para atualizar seus dados</Text>
+            <Text style={styles.profileName}>{name || givenName || 'Seu Nome'}</Text>
+            {email ? <Text style={styles.profileSubtext}>{email}</Text> : null}
+            {isLoadingProfile ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
+                <ActivityIndicator size="small" color={theme.primary} />
+                <Text style={[styles.profileSubtext, { fontSize: 12 }]}>Carregando dados...</Text>
+              </View>
+            ) : (
+              <Text style={[styles.profileSubtext, { fontSize: 12, marginTop: 4 }]}>Toque em editar para atualizar seus dados</Text>
+            )}
           </View>
           <TouchableOpacity
             style={[styles.editButton, editMode && styles.editButtonActive]}
@@ -440,6 +642,19 @@ export default function SettingsScreen() {
         delay={200}
       />
 
+      <View style={styles.divider} />
+
+      {/* Confirmar E-mail */}
+      <SettingRow
+        icon={Mail}
+        label={emailVerified ? 'E-mail Confirmado' : 'Confirmar E-mail'}
+        value={emailVerified ? '✅' : undefined}
+        onPress={emailVerified ? undefined : handleConfirmEmail}
+        showBadge={!emailVerified}
+        showChevron={!emailVerified}
+        delay={220}
+      />
+
       {/* ===== SEÇÃO: NOTIFICAÇÕES ===== */}
       <SectionHeader icon={Bell} title="Notificações" delay={250} />
       <Animated.View entering={FadeInDown.delay(300).duration(500)} style={styles.card}>
@@ -479,7 +694,7 @@ export default function SettingsScreen() {
           icon={Eye}
           label="Sessões Ativas"
           value="1 dispositivo"
-          onPress={() => Alert.alert('Sessões', 'Gerenciamento de sessões em breve.')}
+          onPress={() => showAlert('Sessões', 'Gerenciamento de sessões em breve.')}
         />
       </Animated.View>
 
@@ -489,8 +704,8 @@ export default function SettingsScreen() {
         <SettingToggleRow
           icon={Moon}
           label="Modo Escuro"
-          value={darkMode}
-          onValueChange={setDarkMode}
+          value={isDarkMode}
+          onValueChange={toggleTheme}
         />
       </Animated.View>
 
@@ -539,14 +754,56 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </Animated.View>
     </ScrollView>
-  );
+
+    {/* Modal para Políticas Legais */}
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={legalModalVisible}
+      onRequestClose={() => setLegalModalVisible(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          {/* Header do Modal */}
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{legalModalTitle}</Text>
+            <TouchableOpacity
+              onPress={() => setLegalModalVisible(false)}
+              style={styles.modalCloseButton}
+            >
+              <X color={theme.text} size={24} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Conteúdo do Modal */}
+          <ScrollView
+            contentContainerStyle={styles.modalScrollContent}
+            showsVerticalScrollIndicator={true}
+          >
+            {legalModalContent}
+          </ScrollView>
+
+          {/* Rodapé com botão de fechar */}
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.modalPrimaryButton}
+              onPress={() => setLegalModalVisible(false)}
+            >
+              <Text style={styles.modalPrimaryButtonText}>Entendi</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  </>
+);
 }
 
 // --- ESTILOS ---
-const styles = StyleSheet.create({
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: theme.background,
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -565,7 +822,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: '#f0fdfa',
+    backgroundColor: theme.card === '#ffffff' ? '#f0fdfa' : theme.border,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
@@ -573,17 +830,17 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0f172a',
+    color: theme.text,
     letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
 
   // --- Card ---
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: theme.border,
     overflow: 'hidden',
     ...Platform.select({
       ios: {
@@ -608,7 +865,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#0d9488',
+    backgroundColor: theme.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
@@ -624,11 +881,11 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#0f172a',
+    color: theme.text,
   },
   profileSubtext: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: theme.textSecondary,
     marginTop: 2,
   },
   editButton: {
@@ -636,20 +893,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#0d9488',
+    borderColor: theme.primary,
     backgroundColor: 'transparent',
   },
   editButtonActive: {
-    backgroundColor: '#fef2f2',
-    borderColor: '#ef4444',
+    backgroundColor: theme.card === '#ffffff' ? '#fef2f2' : theme.border,
+    borderColor: theme.danger,
   },
   editButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#0d9488',
+    color: theme.primary,
   },
   editButtonTextActive: {
-    color: '#ef4444',
+    color: theme.danger,
   },
 
   // --- Campos de Edição ---
@@ -658,7 +915,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     gap: 14,
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: theme.border,
     paddingTop: 16,
   },
   inputGroup: {
@@ -672,18 +929,18 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#475569',
+    color: theme.textSecondary,
     letterSpacing: 0.2,
   },
   textInput: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: theme.background,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: theme.border,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: Platform.OS === 'ios' ? 12 : 10,
     fontSize: 15,
-    color: '#0f172a',
+    color: theme.text,
   },
   textInputMultiline: {
     minHeight: 64,
@@ -693,7 +950,7 @@ const styles = StyleSheet.create({
   // --- Botão Salvar ---
   saveButton: {
     flexDirection: 'row',
-    backgroundColor: '#0d9488',
+    backgroundColor: theme.primary,
     height: 46,
     borderRadius: 10,
     alignItems: 'center',
@@ -701,7 +958,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     ...Platform.select({
       ios: {
-        shadowColor: '#0d9488',
+        shadowColor: theme.primary,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
@@ -738,15 +995,27 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: theme.background,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    position: 'relative',
+  },
+  settingRowBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: theme.danger,
+    borderWidth: 1.5,
+    borderColor: theme.card,
   },
   settingRowLabel: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#1e293b',
+    color: theme.text,
   },
   settingRowRight: {
     flexDirection: 'row',
@@ -755,14 +1024,14 @@ const styles = StyleSheet.create({
   },
   settingRowValue: {
     fontSize: 14,
-    color: '#94a3b8',
+    color: theme.textSecondary,
     fontWeight: '400',
   },
 
   // --- Divider ---
   divider: {
     height: 1,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: theme.border,
     marginLeft: 64,
   },
 
@@ -775,12 +1044,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingVertical: 14,
     borderRadius: 14,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.card,
     borderWidth: 1,
-    borderColor: '#fecaca',
+    borderColor: theme.card === '#ffffff' ? '#fecaca' : theme.danger,
     ...Platform.select({
       ios: {
-        shadowColor: '#ef4444',
+        shadowColor: theme.danger,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.08,
         shadowRadius: 6,
@@ -793,6 +1062,70 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ef4444',
+    color: theme.danger,
+  },
+  // --- Legal Modal Styles ---
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: theme.card,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '85%',
+    borderWidth: 1,
+    borderColor: theme.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 10,
+      },
+    }),
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.text,
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalScrollContent: {
+    padding: 20,
+    paddingBottom: 32,
+  },
+  modalFooter: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: theme.border,
+    backgroundColor: theme.card,
+  },
+  modalPrimaryButton: {
+    backgroundColor: theme.primary,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalPrimaryButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
