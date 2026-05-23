@@ -11,6 +11,7 @@
     "lint": "expo lint"
   },
   "dependencies": {
+    "@expo-google-fonts/raleway": "^0.4.2",
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -28,6 +29,7 @@
     "expo-image": "55.0.7-canary-20260328-2049187",
     "expo-linear-gradient": "55.0.10-canary-20260328-2049187",
     "expo-linking": "55.0.10-canary-20260328-2049187",
+    "expo-navigation-bar": "55.0.10-canary-20260328-2049187",
     "expo-router": "55.0.9-canary-20260328-2049187",
     "expo-splash-screen": "55.0.14-canary-20260328-2049187",
     "expo-status-bar": "55.0.5-canary-20260328-2049187",

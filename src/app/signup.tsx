@@ -24,6 +24,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { ArrowLeft } from 'lucide-react-native';
+import { useTheme, ThemeColors } from '@/context/ThemeContext';
 
 import { signup } from '@/services/auth';
 
@@ -44,6 +45,9 @@ function extractCPFDigits(formatted: string): string {
 }
 
 export default function SignupScreen() {
+  const { theme, isDarkMode } = useTheme();
+  const styles = getStyles(theme, isDarkMode);
+  const gradientColors = isDarkMode ? ['#1e293b', '#0f172a', '#020617'] : ['#059669', '#0d9488', '#0f766e'];
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -198,7 +202,7 @@ export default function SignupScreen() {
 
   return (
     <LinearGradient
-      colors={['#059669', '#0d9488', '#0f766e']}
+      colors={gradientColors}
       locations={[0, 0.5, 1]}
       style={styles.gradient}
     >
@@ -312,7 +316,7 @@ export default function SignupScreen() {
               disabled={isLoading}
             >
               {isLoading ? (
-                <ActivityIndicator color="#0f766e" size="small" />
+                <ActivityIndicator color={isDarkMode ? "#0f172a" : "#0f766e"} size="small" />
               ) : (
                 <Text style={styles.signupButtonText}>Cadastrar</Text>
               )}
@@ -332,7 +336,7 @@ export default function SignupScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: ThemeColors, isDarkMode: boolean) => StyleSheet.create({
   flex: {
     flex: 1,
   },
@@ -428,7 +432,7 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   signupButtonText: {
-    color: '#0f766e',
+    color: isDarkMode ? '#0f172a' : '#0f766e',
     fontSize: 17,
     fontWeight: '700',
     letterSpacing: 0.3,

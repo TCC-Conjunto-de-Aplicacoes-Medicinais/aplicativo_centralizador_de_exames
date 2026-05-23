@@ -5,19 +5,19 @@ import { MedicalExam } from '@/types/exam-flow-types';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { ThemedText } from './themed-text';
-import { ThemedView } from './themed-view';
-import { SymbolView } from 'expo-symbols';
+import { Droplet, Activity, Heart, FlaskConical, FileText } from 'lucide-react-native';
+import { useTheme, ThemeColors } from '@/context/ThemeContext';
 
 interface ExamCardProps {
   exam: MedicalExam;
 }
 
-const examTypeIcons = {
-  'blood-test': 'drop.fill',
-  'imaging': 'waveform.path.ecg',
-  'cardiology': 'heart.fill',
-  'urine-test': 'drop.fill',
-  'report': 'doc.text.fill',
+const examTypeIcons: Record<string, React.ElementType> = {
+  'blood-test': Droplet,
+  'imaging': Activity,
+  'cardiology': Heart,
+  'urine-test': FlaskConical,
+  'report': FileText,
 };
 
 const examTypeLabels = {
@@ -28,17 +28,17 @@ const examTypeLabels = {
   'report': 'Relatório',
 };
 
-const statusColors = {
-  completed: '#dcfce7', // emerald-100
-  pending: '#fef3c7', // amber-100
-  processing: '#dbeafe', // blue-100
-};
+const getStatusColors = (isDarkMode: boolean) => ({
+  completed: isDarkMode ? '#064e3b' : '#dcfce7',
+  pending: isDarkMode ? '#78350f' : '#fef3c7',
+  processing: isDarkMode ? '#1e3a8a' : '#dbeafe',
+});
 
-const statusTextColors = {
-  completed: '#047857', // emerald-700
-  pending: '#d97706', // amber-700
-  processing: '#2563eb', // blue-700
-};
+const getStatusTextColors = (isDarkMode: boolean) => ({
+  completed: isDarkMode ? '#34d399' : '#047857',
+  pending: isDarkMode ? '#fbbf24' : '#d97706',
+  processing: isDarkMode ? '#60a5fa' : '#2563eb',
+});
 
 const statusLabels = {
   completed: 'Concluído',
@@ -47,7 +47,11 @@ const statusLabels = {
 };
 
 export function ExamCard({ exam }: ExamCardProps) {
+  const { theme, isDarkMode } = useTheme();
+  const styles = getStyles(theme);
   const router = useRouter();
+  const statusColors = getStatusColors(isDarkMode);
+  const statusTextColors = getStatusTextColors(isDarkMode);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -68,11 +72,10 @@ export function ExamCard({ exam }: ExamCardProps) {
         <View style={styles.content}>
           {/* Icon */}
           <View style={styles.iconContainer}>
-            <SymbolView
-              name={examTypeIcons[exam.type] || 'doc.fill'}
-              size={24}
-              tintColor="#0f766e" // teal-600
-            />
+            {(() => {
+              const IconComponent = examTypeIcons[exam.type] || FileText;
+              return <IconComponent size={24} color={theme.primary} />;
+            })()}
           </View>
 
           {/* Content */}
@@ -119,7 +122,7 @@ export function ExamCard({ exam }: ExamCardProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
   card: {
     marginBottom: 12,
   },
@@ -131,7 +134,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#f0fdfa', // teal-50
+    backgroundColor: theme.card === '#ffffff' ? '#f0fdfa' : theme.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -148,7 +151,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0f172a', // slate-900
+    color: theme.text,
     flex: 1,
   },
   statusBadge: {
@@ -157,7 +160,7 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 12,
-    color: '#64748b', // slate-500
+    color: theme.textSecondary,
     marginBottom: 8,
   },
   footer: {
@@ -168,15 +171,15 @@ const styles = StyleSheet.create({
   type: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#475569', // slate-600
+    color: theme.text,
   },
   date: {
     fontSize: 12,
-    color: '#64748b', // slate-500
+    color: theme.textSecondary,
   },
   facility: {
     fontSize: 11,
-    color: '#94a3b8', // slate-400
+    color: theme.textSecondary,
     marginTop: 4,
   },
 });

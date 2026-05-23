@@ -113,13 +113,13 @@ export async function signup(
  *
  * @throws Error com mensagem do backend em caso de falha
  */
-export async function login(email: string, password: string): Promise<LoginResponse> {
+export async function login(cpf: string, password: string, rememberMe: boolean = true): Promise<LoginResponse> {
   // Cria o DPoP proof para esta requisição específica
   const dpopProof = await createDPoPProof('POST', LOGIN_ENDPOINT);
 
   try {
     const response = await axios.post<LoginResponse>(LOGIN_ENDPOINT, {
-      email,
+      cpf,
       password
     }, {
       headers: {
@@ -129,14 +129,24 @@ export async function login(email: string, password: string): Promise<LoginRespo
     });
 
     const loginData = response.data;
+    console.log(loginData)
 
     // Armazena tokens de forma segura
     const expiresAt = Date.now() + loginData.expires_in * 1000;
-    await Promise.all([
+    
+    // Armazena access token e expiry sempre. Refresh token só se rememberMe for true.
+    const storagePromises = [
       AsyncStorage.setItem(ACCESS_TOKEN_KEY, loginData.access_token),
-      AsyncStorage.setItem(REFRESH_TOKEN_KEY, loginData.refresh_token),
       AsyncStorage.setItem(TOKEN_EXPIRY_KEY, expiresAt.toString()),
-    ]);
+    ];
+
+    if (rememberMe && loginData.refresh_token) {
+      storagePromises.push(AsyncStorage.setItem(REFRESH_TOKEN_KEY, loginData.refresh_token));
+    } else {
+      storagePromises.push(AsyncStorage.removeItem(REFRESH_TOKEN_KEY));
+    }
+
+    await Promise.all(storagePromises);
 
     console.log('[AUTH] Login realizado. Token expira em', loginData.expires_in, 'segundos');
 
@@ -215,7 +225,16 @@ async function _doRefresh(): Promise<RefreshResponse> {
     console.log('[AUTH] Refresh concluído. Novo token expira em', refreshData.expires_in, 'segundos');
 
     return refreshData;
-  } catch (err) {
+  } catch (err: any) {
+    console.log('[AUTH] Falha no refresh. Detalhes do erro:', err?.message);
+    if (axios.isAxiosError(err)) {
+      console.log('[AUTH] Status da resposta:', err.response?.status);
+      console.log('[AUTH] Dados da resposta:', JSON.stringify(err.response?.data));
+      console.log('[AUTH] Headers da resposta:', JSON.stringify(err.response?.headers));
+      console.log('[AUTH] Config da requisição:', JSON.stringify(err.config));
+    } else {
+      console.log('[AUTH] Objeto de erro completo:', JSON.stringify(err));
+    }
     console.log('[AUTH] Falha no refresh, realizando logout...');
     // Se refresh falhar, limpa tudo (sessão inválida)
     await logout();

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -25,43 +25,32 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { Code2 } from 'lucide-react-native';
+import { Code2, Check } from 'lucide-react-native';
 
-import { login, getToken } from '@/services/auth';
+import { login } from '@/services/auth';
+
+/** Formata CPF em tempo real: 123.456.789-01 */
+function formatCPF(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+}
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
+  const [cpf, setCpf] = useState('');
   const [password, setPassword] = useState('');
-  const [emailFocused, setEmailFocused] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [cpfFocused, setCpfFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const passwordRef = useRef<TextInput>(null);
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  // --- Auto-login: tenta restaurar sessão ao abrir o app ---
-  useEffect(() => {
-    const tryAutoLogin = async () => {
-      try {
-        console.log('[AUTH] Verificando sessão existente...');
-        const token = await getToken();
-        if (token) {
-          console.log('[AUTH] Sessão válida encontrada, redirecionando...');
-          router.replace('/exam-flow/home');
-          return;
-        }
-        console.log('[AUTH] Nenhuma sessão válida encontrada.');
-      } catch (err) {
-        console.log('[AUTH] Erro ao verificar sessão:', err);
-      } finally {
-        setIsCheckingSession(false);
-      }
-    };
 
-    tryAutoLogin();
-  }, []);
 
   // Animação de shake no erro
   const errorShake = useSharedValue(0);
@@ -84,17 +73,17 @@ export default function LoginScreen() {
     setErrorMessage('');
 
     // Validação básica
-    const trimmedEmail = email.trim();
+    const trimmedCpf = cpf.replace(/\D/g, '');
     const trimmedPassword = password.trim();
 
-    if (!trimmedEmail || !trimmedPassword) {
+    if (!trimmedCpf || !trimmedPassword) {
       setErrorMessage('Preencha todos os campos');
       triggerShake();
       return;
     }
 
-    if (!trimmedEmail.includes('@')) {
-      setErrorMessage('E-mail inválido');
+    if (trimmedCpf.length !== 11) {
+      setErrorMessage('CPF inválido');
       triggerShake();
       return;
     }
@@ -102,7 +91,7 @@ export default function LoginScreen() {
     setIsLoading(true);
 
     try {
-      await login(trimmedEmail, trimmedPassword);
+      await login(trimmedCpf, trimmedPassword, rememberMe);
       // Login bem-sucedido — navega para o fluxo principal
       router.replace('/exam-flow/home');
     } catch (err: any) {
@@ -111,7 +100,7 @@ export default function LoginScreen() {
 
       // Traduz erros comuns do backend
       if (message.includes('credenciais inválidas') || message.includes('invalid_grant') || message.includes('Invalid user credentials')) {
-        setErrorMessage('E-mail ou senha incorretos');
+        setErrorMessage('CPF ou senha incorretos');
       } else if (message.includes('validation') && message.includes('min') && message.includes('Password')) {
         setErrorMessage('A senha deve ter no mínimo 8 caracteres');
       } else if (message.includes('dpop') || message.includes('DPoP') || message.includes('JWT')) {
@@ -132,31 +121,7 @@ export default function LoginScreen() {
     router.push('/dev-home');
   };
 
-  // Tela de carregamento enquanto verifica a sessão
-  if (isCheckingSession) {
-    return (
-      <LinearGradient
-        colors={['#059669', '#0d9488', '#0f766e']}
-        locations={[0, 0.5, 1]}
-        style={styles.gradient}
-      >
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-          <View style={styles.logoContainer}>
-            <Image
-              source={require('@/assets/images/logo-glow.png')}
-              style={styles.logo}
-              contentFit="contain"
-            />
-          </View>
-          <ActivityIndicator color="#ffffff" size="large" style={{ marginTop: 24 }} />
-          <Text style={{ color: 'rgba(255,255,255,0.7)', marginTop: 12, fontSize: 14 }}>
-            Verificando sessão...
-          </Text>
-        </View>
-      </LinearGradient>
-    );
-  }
+
 
   return (
     <LinearGradient
@@ -171,7 +136,7 @@ export default function LoginScreen() {
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-            
+
             {/* Botão Dev — canto superior direito */}
             <Animated.View
               entering={FadeInUp.delay(800).duration(600)}
@@ -196,11 +161,12 @@ export default function LoginScreen() {
               >
                 <View style={styles.logoContainer}>
                   <Image
-                    source={require('@/assets/images/logo-glow.png')}
+                    source={require('@/assets/images/logo.png')}
                     style={styles.logo}
                     contentFit="contain"
                   />
                 </View>
+                <Text style={styles.brandTitle}>POHINC</Text>
                 <Text style={styles.appTitle}>Centralizador de Exames</Text>
                 <Text style={styles.appSubtitle}>Seus registros médicos em um só lugar</Text>
               </Animated.View>
@@ -222,27 +188,28 @@ export default function LoginScreen() {
                 entering={FadeInDown.delay(400).duration(700)}
                 style={styles.formSection}
               >
-                {/* Campo Email */}
+                {/* Campo CPF */}
                 <View
                   style={[
                     styles.inputWrapper,
-                    emailFocused && styles.inputWrapperFocused,
+                    cpfFocused && styles.inputWrapperFocused,
                   ]}
                 >
-                  <Text style={styles.inputLabel}>E-mail</Text>
+                  <Text style={styles.inputLabel}>CPF</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="seu@email.com"
+                    placeholder="000.000.000-00"
                     placeholderTextColor="rgba(255,255,255,0.4)"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
+                    value={cpf}
+                    onChangeText={(text) => setCpf(formatCPF(text))}
+                    keyboardType="numeric"
                     autoCapitalize="none"
                     autoCorrect={false}
                     returnKeyType="next"
                     onSubmitEditing={() => passwordRef.current?.focus()}
-                    onFocus={() => setEmailFocused(true)}
-                    onBlur={() => setEmailFocused(false)}
+                    onFocus={() => setCpfFocused(true)}
+                    onBlur={() => setCpfFocused(false)}
+                    maxLength={14}
                   />
                 </View>
 
@@ -270,9 +237,22 @@ export default function LoginScreen() {
                 </View>
 
                 {/* Link esqueceu senha */}
-                <TouchableOpacity style={styles.forgotPassword} activeOpacity={0.7}>
-                  <Text style={styles.forgotPasswordText}>Esqueceu sua senha?</Text>
-                </TouchableOpacity>
+                <View style={styles.optionsRow}>
+                  <TouchableOpacity
+                    style={styles.checkboxContainer}
+                    onPress={() => setRememberMe(!rememberMe)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                      {rememberMe && <Check size={14} color="#0f766e" />}
+                    </View>
+                    <Text style={styles.checkboxLabel}>Lembrar-me</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.forgotPassword} activeOpacity={0.7}>
+                    <Text style={styles.forgotPasswordText}>Esqueceu sua senha?</Text>
+                  </TouchableOpacity>
+                </View>
               </Animated.View>
 
               {/* Botão Entrar */}
@@ -355,7 +335,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
-    // Glow sutil
     shadowColor: '#ffffff',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.3,
@@ -363,8 +342,8 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   logo: {
-    width: 64,
-    height: 64,
+    width: 96,
+    height: 96,
   },
   appTitle: {
     fontSize: 26,
@@ -372,6 +351,14 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     textAlign: 'center',
     letterSpacing: 0.3,
+  },
+  brandTitle: {
+    fontFamily: 'Raleway_900Black',
+    fontSize: 38,
+    color: '#ffffff',
+    textAlign: 'center',
+    letterSpacing: 2,
+    marginBottom: -4,
   },
   appSubtitle: {
     fontSize: 15,
@@ -410,9 +397,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  forgotPassword: {
-    alignSelf: 'flex-end',
+  optionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: -4,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#ffffff',
+    borderColor: '#ffffff',
+  },
+  checkboxLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  forgotPassword: {
   },
   forgotPasswordText: {
     color: 'rgba(255,255,255,0.6)',
@@ -432,7 +446,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'stretch',
-    // Sombra premium
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,

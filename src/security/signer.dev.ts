@@ -22,3 +22,8 @@ export const sign = async (payload: string) => {
 
   return signature;
 };
+
+export const authenticateUser = async (promptMessage: string): Promise<boolean> => {
+  console.log('[signer.dev] Simulando autenticação de biometria/senha:', promptMessage);
+  return true;
+};

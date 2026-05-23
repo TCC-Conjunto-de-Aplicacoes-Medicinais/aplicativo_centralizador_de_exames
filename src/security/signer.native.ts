@@ -43,3 +43,16 @@ export const sign = async (payload: string) => {
     throw err;
   }
 };
+
+export const authenticateUser = async (promptMessage: string): Promise<boolean> => {
+  try {
+    const promptResult = await rnBiometrics.simplePrompt({
+      promptMessage: promptMessage,
+      cancelButtonText: 'Cancelar',
+    });
+    return promptResult.success;
+  } catch (err) {
+    console.warn('[signer.native] authenticateUser falhou ou cancelado:', err);
+    return false;
+  }
+};

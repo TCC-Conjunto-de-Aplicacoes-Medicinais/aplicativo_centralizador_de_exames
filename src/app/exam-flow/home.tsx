@@ -6,10 +6,11 @@ import {
   FlatList, 
   TouchableOpacity, 
   StyleSheet, 
-  Alert 
-} from 'react-native';
+  } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Search, Upload } from 'lucide-react-native';
+import { useTheme, ThemeColors } from '@/context/ThemeContext';
+import { useCustomAlert } from '@/context/AlertContext';
 
 // Assumindo que essas importações existem no seu projeto mobile
 import { mockExams } from '@/data/mockData';
@@ -18,6 +19,9 @@ import { ExamCard } from '@/components/ExamCard';
 type FilterType = 'all' | 'completed' | 'pending' | 'processing';
 
 export default function Home() {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  const { showAlert } = useCustomAlert();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('all');
   const insets = useSafeAreaInsets(); // Pega as margens de segurança reais do aparelho
@@ -42,7 +46,7 @@ export default function Home() {
 
   const handleUpload = () => {
     // Alertas nativos do OS
-    Alert.alert('Em breve!', 'Funcionalidade de upload de exames em breve!');
+    showAlert('Em breve!', 'Funcionalidade de upload de exames em breve!');
   };
 
   // --- COMPONENTES DA LISTA ---
@@ -142,10 +146,10 @@ export default function Home() {
 }
 
 // --- ESTILOS NATIVOS ---
-const styles = StyleSheet.create({
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc', // Cor de fundo suave para a tela inteira
+    backgroundColor: theme.background,
   },
   listContent: {
     paddingHorizontal: 16,
@@ -157,9 +161,9 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.card,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: theme.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     height: 44,
@@ -170,7 +174,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     height: '100%',
-    color: '#0f172a',
+    color: theme.text,
     fontSize: 16,
   },
   filtersContainer: {
@@ -187,7 +191,7 @@ const styles = StyleSheet.create({
   },
   filterChipInactive: {
     backgroundColor: 'transparent',
-    borderColor: '#cbd5e1',
+    borderColor: theme.border,
   },
   filterText: {
     fontSize: 14,
@@ -197,7 +201,7 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   filterTextInactive: {
-    color: '#475569',
+    color: theme.textSecondary,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -208,7 +212,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: theme.card,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -216,24 +220,23 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#0f172a',
+    color: theme.text,
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#475569',
+    color: theme.textSecondary,
   },
   footer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.card,
     borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
+    borderTopColor: theme.border,
     paddingHorizontal: 16,
     paddingTop: 16,
-    // Sombra para iOS e Android
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
@@ -242,7 +245,7 @@ const styles = StyleSheet.create({
   },
   uploadButton: {
     flexDirection: 'row',
-    backgroundColor: '#0d9488',
+    backgroundColor: theme.primary,
     height: 48,
     borderRadius: 8,
     alignItems: 'center',

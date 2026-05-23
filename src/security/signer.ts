@@ -8,3 +8,4 @@ const signer =
 
 export const createKeys = signer.createKeys;
 export const sign = signer.sign;
+export const authenticateUser = signer.authenticateUser;
