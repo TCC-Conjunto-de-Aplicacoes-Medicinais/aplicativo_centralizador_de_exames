@@ -1,15 +1,18 @@
 import React from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
+import { View, StyleSheet, ViewStyle, TextStyle, StyleProp } from 'react-native';
 import { ThemedText } from '../themed-text';
+import { useTheme, ThemeColors } from '@/context/ThemeContext';
 
 interface BadgeProps {
   children: React.ReactNode;
   variant?: 'default' | 'secondary';
-  style?: ViewStyle;
-  textStyle?: TextStyle;
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
 }
 
 export function Badge({ children, variant = 'default', style, textStyle }: BadgeProps) {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   return (
     <View style={[styles.badge, variant === 'secondary' && styles.secondary, style]}>
       <ThemedText style={[styles.text, variant === 'secondary' && styles.secondaryText, textStyle]}>
@@ -19,23 +22,23 @@ export function Badge({ children, variant = 'default', style, textStyle }: Badge
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
   badge: {
-    backgroundColor: '#0f766e', // teal-600
+    backgroundColor: theme.primary,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
     alignSelf: 'flex-start',
   },
   secondary: {
-    backgroundColor: '#f1f5f9', // slate-100
+    backgroundColor: theme.border,
   },
   text: {
-    color: 'white',
+    color: '#ffffff',
     fontSize: 12,
     fontWeight: '600',
   },
   secondaryText: {
-    color: '#475569', // slate-600
+    color: theme.textSecondary,
   },
 });

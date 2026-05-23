@@ -1,15 +1,16 @@
 import React from 'react';
-import { TextInput, StyleSheet, ViewStyle, TextInputProps } from 'react-native';
-import { useThemeColor } from '@/hooks/use-theme';
+import { TextInput, StyleSheet, TextStyle, TextInputProps } from 'react-native';
+import { useTheme } from '@/context/ThemeContext';
 
 interface InputProps extends TextInputProps {
-  style?: ViewStyle;
+  style?: TextStyle;
 }
 
 export function Input({ style, ...props }: InputProps) {
-  const backgroundColor = useThemeColor({}, 'background');
-  const textColor = useThemeColor({}, 'text');
-  const borderColor = useThemeColor({}, 'border');
+  const { theme } = useTheme();
+  const backgroundColor = theme.card;
+  const textColor = theme.text;
+  const borderColor = theme.border;
 
   return (
     <TextInput

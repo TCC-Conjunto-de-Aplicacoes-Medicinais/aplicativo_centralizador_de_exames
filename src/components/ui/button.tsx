@@ -1,7 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { ThemedText } from '../themed-text';
-import { useThemeColor } from '@/hooks/use-theme';
+import { useTheme, ThemeColors } from '@/context/ThemeContext';
 
 interface ButtonProps {
   onPress: () => void;
@@ -22,8 +22,10 @@ export function Button({
   style,
   textStyle,
 }: ButtonProps) {
-  const backgroundColor = useThemeColor({}, 'tint');
-  const textColor = useThemeColor({}, 'text');
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  const backgroundColor = theme.primary;
+  const textColor = '#ffffff';
 
   const buttonStyle = [
     styles.button,
@@ -52,9 +54,9 @@ export function Button({
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
   button: {
-    backgroundColor: '#0f766e', // teal-600
+    backgroundColor: theme.primary,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
@@ -68,13 +70,13 @@ const styles = StyleSheet.create({
   outline: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#cbd5e1', // slate-300
+    borderColor: theme.border,
   },
   disabled: {
     opacity: 0.5,
   },
   text: {
-    color: 'white',
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
   },
