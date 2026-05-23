@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -13,10 +13,18 @@ import {
   FileCheck,
   Share2,
   Download,
+  Eye,
+  ChevronDown,
+  ChevronUp,
+  ShieldCheck,
 } from 'lucide-react-native';
 
-// Assumindo que mockExams existe neste caminho
-import { mockExams } from '../../../data/mockData';
+import { mockExams } from '@/data/mockData';
+import { useTheme, ThemeColors } from '@/context/ThemeContext';
+import { useCustomAlert } from '@/context/AlertContext';
+import { authenticatedRequest } from '@/services/auth';
+import { authenticateUser } from '@/security/signer';
+
 
 const examTypeIcons: Record<string, any> = {
   'blood-test': Droplet,
@@ -34,22 +42,74 @@ const examTypeLabels: Record<string, string> = {
   report: 'Relatório',
 };
 
-const statusConfig: Record<string, { bg: string; text: string; border: string; label: string }> = {
-  completed: { bg: '#d1fae5', text: '#047857', border: '#a7f3d0', label: 'Concluído' },
-  pending: { bg: '#fef3c7', text: '#b45309', border: '#fde68a', label: 'Pendente' },
-  processing: { bg: '#dbeafe', text: '#1d4ed8', border: '#bfdbfe', label: 'Processando' },
-};
+const getStatusConfig = (isDark: boolean) => ({
+  completed: {
+    bg: isDark ? '#064e3b' : '#d1fae5',
+    text: isDark ? '#6ee7b7' : '#047857',
+    border: isDark ? '#065f46' : '#a7f3d0',
+    label: 'Concluído',
+  },
+  pending: {
+    bg: isDark ? '#78350f' : '#fef3c7',
+    text: isDark ? '#fcd34d' : '#b45309',
+    border: isDark ? '#92400e' : '#fde68a',
+    label: 'Pendente',
+  },
+  processing: {
+    bg: isDark ? '#1e3a8a' : '#dbeafe',
+    text: isDark ? '#93c5fd' : '#1d4ed8',
+    border: isDark ? '#1e40af' : '#bfdbfe',
+    label: 'Processando',
+  },
+});
 
 export default function ExamDetails() {
+  const { theme, isDarkMode } = useTheme();
+  const styles = getStyles(theme, isDarkMode);
+  const { showAlert } = useCustomAlert();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isSmallScreen = width < 380;
+
+  const [selectedDoctor, setSelectedDoctor] = React.useState<string>('');
+  const [isDropdownOpen, setIsDropdownOpen] = React.useState<boolean>(false);
 
   const exam = mockExams.find((e) => e.id === id);
+
+  const handleShareWithDoctor = async (doctorName: string) => {
+    if (!exam || !doctorName) return;
+
+    // Confirmação biométrica / senha local do celular
+    const authenticated = await authenticateUser(
+      `Confirme com sua biometria ou senha para compartilhar o exame com ${doctorName}.`
+    );
+    if (!authenticated) {
+      return;
+    }
+
+    try {
+      const shareUrl = `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/users/exams/share`;
+      await authenticatedRequest(shareUrl, {
+        method: 'POST',
+        data: {
+          exam_id: exam.id,
+          doctor_name: doctorName,
+        },
+      });
+      showAlert('Sucesso', `Exame compartilhado com ${doctorName} com sucesso!`);
+      setSelectedDoctor('');
+    } catch (err: any) {
+      console.log('[SHARE] Erro ao compartilhar exame:', err?.message);
+      showAlert('Erro', 'Não foi possível compartilhar o exame. Tente novamente.');
+    }
+  };
+
 
   if (!exam) {
     return (
       <View style={styles.notFoundContainer}>
-        <FileText color="#94a3b8" size={48} style={styles.notFoundIcon} />
+        <FileText color={theme.textSecondary} size={48} style={styles.notFoundIcon} />
         <Text style={styles.notFoundText}>Exame não encontrado</Text>
         <TouchableOpacity style={styles.primaryButton} onPress={() => router.replace('/exam-flow/home')}>
           <Text style={styles.primaryButtonText}>Voltar para o início</Text>
@@ -59,7 +119,8 @@ export default function ExamDetails() {
   }
 
   const Icon = examTypeIcons[exam.type] || FileText;
-  const currentStatus = statusConfig[exam.status];
+  const statusConfig = getStatusConfig(isDarkMode);
+  const currentStatus = statusConfig[exam.status as keyof typeof statusConfig];
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -71,18 +132,25 @@ export default function ExamDetails() {
     });
   };
 
+  // Cores dos icon circles adaptadas ao tema
+  const iconCircleColors = {
+    calendar: { bg: isDarkMode ? 'rgba(13,148,136,0.15)' : '#ccfbf1', icon: isDarkMode ? '#2dd4bf' : '#0d9488' },
+    fileCheck: { bg: isDarkMode ? 'rgba(37,99,235,0.15)' : '#dbeafe', icon: isDarkMode ? '#60a5fa' : '#2563eb' },
+    building: { bg: isDarkMode ? 'rgba(147,51,234,0.15)' : '#f3e8ff', icon: isDarkMode ? '#c084fc' : '#9333ea' },
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
       {/* Header Card com Gradiente */}
-      <LinearGradient colors={['#059669', '#0d9488']} style={styles.headerGradient}>
+      <LinearGradient colors={theme.headerBackground} style={styles.headerGradient}>
         <View style={styles.headerRow}>
           <View style={styles.iconWrapper}>
-            <Icon color="#ffffff" size={32} />
+            <Icon color="#ffffff" size={isSmallScreen ? 24 : 32} />
           </View>
           <View style={styles.headerTextWrapper}>
-            <Text style={styles.examTitle}>{exam.name}</Text>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{currentStatus.label}</Text>
+            <Text style={[styles.examTitle, isSmallScreen && { fontSize: 20 }]}>{exam.name}</Text>
+            <View style={[styles.badge, { backgroundColor: currentStatus.bg, borderColor: currentStatus.border }]}>
+              <Text style={[styles.badgeText, { color: currentStatus.text }]}>{currentStatus.label}</Text>
             </View>
           </View>
         </View>
@@ -96,10 +164,10 @@ export default function ExamDetails() {
           <View style={styles.gridRow}>
             {/* Data */}
             <View style={styles.gridItem}>
-              <View style={[styles.infoIconCircle, { backgroundColor: '#ccfbf1' }]}>
-                <Calendar color="#0d9488" size={20} />
+              <View style={[styles.infoIconCircle, { backgroundColor: iconCircleColors.calendar.bg }]}>
+                <Calendar color={iconCircleColors.calendar.icon} size={20} />
               </View>
-              <View>
+              <View style={styles.infoTextWrapper}>
                 <Text style={styles.infoLabel}>Data</Text>
                 <Text style={styles.infoValue}>{formatDate(exam.date)}</Text>
               </View>
@@ -107,10 +175,10 @@ export default function ExamDetails() {
 
             {/* Tipo */}
             <View style={styles.gridItem}>
-              <View style={[styles.infoIconCircle, { backgroundColor: '#dbeafe' }]}>
-                <FileCheck color="#2563eb" size={20} />
+              <View style={[styles.infoIconCircle, { backgroundColor: iconCircleColors.fileCheck.bg }]}>
+                <FileCheck color={iconCircleColors.fileCheck.icon} size={20} />
               </View>
-              <View>
+              <View style={styles.infoTextWrapper}>
                 <Text style={styles.infoLabel}>Tipo</Text>
                 <Text style={styles.infoValue}>{examTypeLabels[exam.type]}</Text>
               </View>
@@ -120,10 +188,10 @@ export default function ExamDetails() {
           {/* Instituição */}
           {exam.facility && (
             <View style={styles.facilityRow}>
-              <View style={[styles.infoIconCircle, { backgroundColor: '#f3e8ff' }]}>
-                <Building2 color="#9333ea" size={20} />
+              <View style={[styles.infoIconCircle, { backgroundColor: iconCircleColors.building.bg }]}>
+                <Building2 color={iconCircleColors.building.icon} size={20} />
               </View>
-              <View>
+              <View style={styles.infoTextWrapper}>
                 <Text style={styles.infoLabel}>Instituição</Text>
                 <Text style={styles.infoValue}>{exam.facility}</Text>
               </View>
@@ -141,20 +209,20 @@ export default function ExamDetails() {
 
         {/* Resultados (Concluído) */}
         {exam.results && exam.status === 'completed' && (
-          <View style={[styles.card, { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }]}>
+          <View style={[styles.card, { backgroundColor: statusConfig.completed.bg, borderColor: statusConfig.completed.border }]}>
             <View style={styles.cardTitleRow}>
-              <FileCheck color="#065f46" size={20} style={styles.cardTitleIcon} />
-              <Text style={[styles.cardTitle, { color: '#065f46', marginBottom: 0 }]}>Resultados</Text>
+              <FileCheck color={statusConfig.completed.text} size={20} style={styles.cardTitleIcon} />
+              <Text style={[styles.cardTitle, { color: statusConfig.completed.text, marginBottom: 0 }]}>Resultados</Text>
             </View>
-            <Text style={[styles.cardText, { color: '#064e3b' }]}>{exam.results}</Text>
+            <Text style={[styles.cardText, { color: statusConfig.completed.text }]}>{exam.results}</Text>
           </View>
         )}
 
         {/* Estado Pendente */}
         {exam.status === 'pending' && (
-          <View style={[styles.card, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
-            <Text style={[styles.cardTitle, { color: '#78350f' }]}>Atualização de Status</Text>
-            <Text style={[styles.cardText, { color: '#92400e' }]}>
+          <View style={[styles.card, { backgroundColor: statusConfig.pending.bg, borderColor: statusConfig.pending.border }]}>
+            <Text style={[styles.cardTitle, { color: statusConfig.pending.text }]}>Atualização de Status</Text>
+            <Text style={[styles.cardText, { color: statusConfig.pending.text, opacity: 0.85 }]}>
               Este exame está agendado e aguardando conclusão. Você será notificado quando os resultados estiverem disponíveis.
             </Text>
           </View>
@@ -162,40 +230,108 @@ export default function ExamDetails() {
 
         {/* Estado Processando */}
         {exam.status === 'processing' && (
-          <View style={[styles.card, { backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }]}>
-            <Text style={[styles.cardTitle, { color: '#1e3a8a' }]}>Processando</Text>
-            <Text style={[styles.cardText, { color: '#1e40af' }]}>
+          <View style={[styles.card, { backgroundColor: statusConfig.processing.bg, borderColor: statusConfig.processing.border }]}>
+            <Text style={[styles.cardTitle, { color: statusConfig.processing.text }]}>Processando</Text>
+            <Text style={[styles.cardText, { color: statusConfig.processing.text, opacity: 0.85 }]}>
               Os resultados do seu exame estão sendo processados pela nossa equipe médica. Estarão disponíveis em breve.
             </Text>
           </View>
         )}
 
-        {/* Botões de Ação */}
+        {/* Compartilhar com Médico (Dropdown e Confirmação) */}
+        {exam.status === 'completed' && (
+          <View style={styles.shareSection}>
+            <Text style={styles.shareSectionTitle}>Compartilhar Exame</Text>
+            
+            {/* Dropdown Trigger */}
+            <TouchableOpacity 
+              style={styles.dropdownTrigger} 
+              onPress={() => setIsDropdownOpen(!isDropdownOpen)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.dropdownTriggerLeft}>
+                <Share2 color={theme.primary} size={18} style={styles.dropdownIcon} />
+                <Text style={[
+                  styles.dropdownTriggerText,
+                  !selectedDoctor && { color: theme.textSecondary }
+                ]}>
+                  {selectedDoctor || 'Selecione um médico...'}
+                </Text>
+              </View>
+              {isDropdownOpen ? (
+                <ChevronUp color={theme.textSecondary} size={18} />
+              ) : (
+                <ChevronDown color={theme.textSecondary} size={18} />
+              )}
+            </TouchableOpacity>
+
+            {/* Dropdown Options List */}
+            {isDropdownOpen && (
+              <View style={styles.dropdownMenu}>
+                <TouchableOpacity 
+                  style={styles.dropdownItem} 
+                  onPress={() => {
+                    setSelectedDoctor('Dr. Lucas Martins');
+                    setIsDropdownOpen(false);
+                  }}
+                >
+                  <Text style={styles.dropdownItemText}>Dr. Lucas Martins</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.dropdownItem, { borderBottomWidth: 0 }]} 
+                  onPress={() => {
+                    setSelectedDoctor('Dra. Carolina Silva');
+                    setIsDropdownOpen(false);
+                  }}
+                >
+                  <Text style={styles.dropdownItemText}>Dra. Carolina Silva</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Confirm button */}
+            <TouchableOpacity 
+              style={[
+                styles.primaryButton, 
+                styles.confirmButtonSpacing,
+                !selectedDoctor && { opacity: 0.6 }
+              ]}
+              disabled={!selectedDoctor}
+              onPress={() => handleShareWithDoctor(selectedDoctor)}
+            >
+              <ShieldCheck color="#ffffff" size={18} style={styles.buttonIcon} />
+              <Text style={styles.primaryButtonText}>Confirmar Compartilhamento</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Outras Ações */}
         {exam.status === 'completed' && (
           <View style={styles.actionsContainer}>
             <TouchableOpacity 
-              style={styles.primaryButton}
-              onPress={() => Alert.alert('Em breve', 'Funcionalidade de compartilhar em breve!')}
+              style={styles.outlineButton}
+              onPress={() => showAlert('Em breve', 'Funcionalidade de visualização em breve!')}
             >
-              <Share2 color="#ffffff" size={18} style={styles.buttonIcon} />
-              <Text style={styles.primaryButtonText}>Compartilhar com Médico</Text>
+              <Eye color={theme.text} size={18} style={styles.buttonIcon} />
+              <Text style={styles.outlineButtonText}>Visualizar Resultados</Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
               style={styles.outlineButton}
-              onPress={() => Alert.alert('Em breve', 'Funcionalidade de download em breve!')}
+              onPress={() => showAlert('Em breve', 'Funcionalidade de download em breve!')}
             >
-              <Download color="#0f172a" size={18} style={styles.buttonIcon} />
+              <Download color={theme.text} size={18} style={styles.buttonIcon} />
               <Text style={styles.outlineButtonText}>Baixar Resultados</Text>
             </TouchableOpacity>
           </View>
         )}
 
+
         {/* Safety Notice */}
-        <View style={[styles.card, { backgroundColor: '#f8fafc', marginBottom: 32 }]}>
+        <View style={[styles.card, styles.safetyCard]}>
           <View style={styles.safetyRow}>
             <View style={styles.safetyIconCircle}>
-              <FileText color="#475569" size={16} />
+              <FileText color={theme.textSecondary} size={16} />
             </View>
             <View style={styles.safetyTextWrapper}>
               <Text style={styles.safetyTitle}>Privacidade Protegida</Text>
@@ -212,32 +348,34 @@ export default function ExamDetails() {
 }
 
 // --- ESTILOS NATIVOS ---
-const styles = StyleSheet.create({
+const getStyles = (theme: ThemeColors, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: theme.background,
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: 32,
   },
   notFoundContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
+    backgroundColor: theme.background,
   },
   notFoundIcon: {
     marginBottom: 16,
   },
   notFoundText: {
     fontSize: 18,
-    color: '#475569',
+    color: theme.textSecondary,
     marginBottom: 24,
   },
   headerGradient: {
     paddingHorizontal: 16,
     paddingTop: 32,
-    paddingBottom: 48, // Espaço extra para o card subir por cima
+    paddingBottom: 48,
   },
   headerRow: {
     flexDirection: 'row',
@@ -258,51 +396,50 @@ const styles = StyleSheet.create({
   examTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: theme.headerText,
     marginBottom: 8,
   },
   badge: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingVertical: 4,
     paddingHorizontal: 12,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   badgeText: {
-    color: '#ffffff',
     fontSize: 12,
     fontWeight: '600',
   },
   content: {
     paddingHorizontal: 16,
-    marginTop: -24, // Faz o primeiro card "subir" por cima do gradiente
+    marginTop: -24,
     gap: 16,
   },
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.card,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: theme.border,
   },
   shadow: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
+    shadowOpacity: isDark ? 0.3 : 0.05,
     shadowRadius: 8,
     elevation: 3,
   },
   gridRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
+    gap: 16,
   },
   gridItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
     gap: 12,
+  },
+  infoTextWrapper: {
+    flex: 1,
   },
   infoIconCircle: {
     width: 40,
@@ -310,16 +447,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   infoLabel: {
     fontSize: 12,
-    color: '#64748b',
+    color: theme.textSecondary,
     marginBottom: 2,
   },
   infoValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0f172a',
+    color: theme.text,
   },
   facilityRow: {
     flexDirection: 'row',
@@ -328,7 +466,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: theme.border,
   },
   cardTitleRow: {
     flexDirection: 'row',
@@ -341,12 +479,12 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#0f172a',
+    color: theme.text,
     marginBottom: 8,
   },
   cardText: {
     fontSize: 14,
-    color: '#334155',
+    color: theme.textSecondary,
     lineHeight: 20,
   },
   actionsContainer: {
@@ -355,7 +493,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flexDirection: 'row',
-    backgroundColor: '#0d9488',
+    backgroundColor: theme.primary,
     height: 48,
     borderRadius: 8,
     alignItems: 'center',
@@ -374,15 +512,75 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: theme.border,
   },
   outlineButtonText: {
-    color: '#0f172a',
+    color: theme.text,
     fontSize: 16,
     fontWeight: '600',
   },
   buttonIcon: {
     marginRight: 8,
+  },
+  shareSection: {
+    backgroundColor: theme.card,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: theme.border,
+    marginBottom: 8,
+  },
+  shareSectionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.text,
+    marginBottom: 12,
+  },
+  dropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#f8fafc',
+    height: 48,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.border,
+    paddingHorizontal: 12,
+  },
+  dropdownTriggerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dropdownIcon: {
+    marginRight: 8,
+  },
+  dropdownTriggerText: {
+    fontSize: 14,
+    color: theme.text,
+  },
+  dropdownMenu: {
+    backgroundColor: theme.card,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.border,
+    marginTop: 4,
+    overflow: 'hidden',
+  },
+  dropdownItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    color: theme.text,
+  },
+  confirmButtonSpacing: {
+    marginTop: 12,
+  },
+  safetyCard: {
+    backgroundColor: isDark ? theme.card : '#f8fafc',
   },
   safetyRow: {
     flexDirection: 'row',
@@ -393,7 +591,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: theme.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -403,12 +601,12 @@ const styles = StyleSheet.create({
   safetyTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0f172a',
+    color: theme.text,
     marginBottom: 4,
   },
   safetyDesc: {
     fontSize: 12,
-    color: '#475569',
+    color: theme.textSecondary,
     lineHeight: 18,
   },
 });
