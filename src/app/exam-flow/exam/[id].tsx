@@ -1,5 +1,15 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  useWindowDimensions,
+  ActivityIndicator,
+  Linking,
+  Platform,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -19,27 +29,33 @@ import {
   ShieldCheck,
 } from 'lucide-react-native';
 
-import { mockExams } from '@/data/mockData';
+import { File as FSFile, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { StorageAccessFramework } from 'expo-file-system/legacy';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { useTheme, ThemeColors } from '@/context/ThemeContext';
 import { useCustomAlert } from '@/context/AlertContext';
 import { authenticatedRequest } from '@/services/auth';
 import { authenticateUser } from '@/security/signer';
-
+import { getExamByID, downloadExamFileNative } from '@/services/exams';
+import { MedicalExam, ExamType, ExamTypeLabels } from '@/types/exam-flow-types';
 
 const examTypeIcons: Record<string, any> = {
-  'blood-test': Droplet,
-  imaging: Activity,
-  cardiology: Heart,
-  'urine-test': Droplet,
-  report: FileCheck2,
-};
-
-const examTypeLabels: Record<string, string> = {
-  'blood-test': 'Exame de Sangue',
-  imaging: 'Imagem',
-  cardiology: 'Cardiologia',
-  'urine-test': 'Exame de Urina',
-  report: 'Relatório',
+  [ExamType.BLOOD_TEST]: Droplet,
+  [ExamType.URINE_TEST]: Droplet,
+  [ExamType.IMAGING]: Activity,
+  [ExamType.CARDIOLOGY]: Heart,
+  [ExamType.REPORT]: FileCheck2,
+  [ExamType.ULTRASOUND]: Activity,
+  [ExamType.XRAY]: Activity,
+  [ExamType.MRI]: Activity,
+  [ExamType.CT_SCAN]: Activity,
+  [ExamType.ECG]: Heart,
+  [ExamType.EEG]: Activity,
+  [ExamType.ENDOSCOPY]: FileCheck2,
+  [ExamType.BIOMARKER]: Droplet,
+  [ExamType.OTHER]: FileText,
 };
 
 const getStatusConfig = (isDark: boolean) => ({
@@ -74,8 +90,46 @@ export default function ExamDetails() {
 
   const [selectedDoctor, setSelectedDoctor] = React.useState<string>('');
   const [isDropdownOpen, setIsDropdownOpen] = React.useState<boolean>(false);
+  const [isOpeningPDF, setIsOpeningPDF] = React.useState<boolean>(false);
+  const [isDownloadingFile, setIsDownloadingFile] = React.useState<boolean>(false);
 
-  const exam = mockExams.find((e) => e.id === id);
+  const [exam, setExam] = React.useState<MedicalExam | null>(null);
+  const [isLoading, setIsLoading] = React.useState<boolean>(true);
+
+  React.useEffect(() => {
+    let isActive = true;
+    const fetchExam = async () => {
+      if (!id) return;
+      setIsLoading(true);
+      try {
+        const data = await getExamByID(id);
+        if (isActive) {
+          setExam(data);
+        }
+      } catch (err: any) {
+        console.error('Erro ao buscar detalhes do exame:', err);
+        showAlert('Erro', 'Não foi possível carregar os detalhes do exame.');
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchExam();
+
+    return () => {
+      isActive = false;
+    };
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+      </View>
+    );
+  }
 
   const handleShareWithDoctor = async (doctorName: string) => {
     if (!exam || !doctorName) return;
@@ -104,6 +158,139 @@ export default function ExamDetails() {
       showAlert('Erro', 'Não foi possível compartilhar o exame. Tente novamente.');
     }
   };
+
+  /** Baixa o arquivo e abre o visualizador/compartilhador do sistema */
+  const handleOpenPDF = async () => {
+    if (!exam?.fileUrl) {
+      showAlert('Arquivo indisponível', 'Este exame não possui um arquivo associado.');
+      return;
+    }
+
+    setIsOpeningPDF(true);
+    try {
+      console.log('[OPEN_PDF] Baixando arquivo para cache:', exam.fileUrl);
+      const safeFilename = (exam.filename || `exame_${exam.id}`).replace(/[^a-zA-Z0-9._-]/g, '_');
+
+      const cacheFile = new FSFile(Paths.cache, safeFilename);
+      if (cacheFile.exists) cacheFile.delete();
+
+      // Baixa o arquivo de forma nativa e autenticada
+      await downloadExamFileNative(exam.fileUrl, cacheFile);
+
+      console.log('[OPEN_PDF] Arquivo salvo em cache. URI:', cacheFile.uri);
+
+      // Verifica se o compartilhamento está disponível no dispositivo
+      const isSharingAvailable = await Sharing.isAvailableAsync();
+      if (isSharingAvailable) {
+        // Abre o visualizador/compartilhador do sistema que permite visualizar o PDF
+        await Sharing.shareAsync(cacheFile.uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Abrir PDF',
+        });
+      } else {
+        // Fallback usando o Linking comum
+        const openUri = cacheFile.contentUri || cacheFile.uri;
+        await Linking.openURL(openUri);
+      }
+    } catch (err: any) {
+      console.error('[OPEN_PDF ERROR]', err);
+      showAlert('Erro ao abrir PDF', err?.message || 'Não foi possível abrir o visualizador.');
+    } finally {
+      setIsOpeningPDF(false);
+    }
+  };
+
+
+
+  /** Baixa o arquivo e salva no armazenamento de documentos */
+  const handleDownloadFile = async () => {
+    if (!exam?.fileUrl) {
+      showAlert('Arquivo indisponível', 'Este exame não possui um arquivo associado.');
+      return;
+    }
+
+    setIsDownloadingFile(true);
+    try {
+      console.log('[DOWNLOAD] Baixando arquivo:', exam.fileUrl);
+      const safeFilename = (exam.filename || `exame_${exam.id}`).replace(/[^a-zA-Z0-9._-]/g, '_');
+
+      // Baixa o arquivo para a pasta de cache temporária primeiro
+      const tempCacheFile = new FSFile(Paths.cache, `download_${safeFilename}`);
+      if (tempCacheFile.exists) tempCacheFile.delete();
+      await downloadExamFileNative(exam.fileUrl, tempCacheFile);
+
+      if (Platform.OS === 'android') {
+        // Fluxo para Android: Salvar na pasta Downloads do sistema usando o SAF (Storage Access Framework)
+        let directoryUri = await AsyncStorage.getItem('user_download_directory_uri');
+
+        if (!directoryUri) {
+          // Solicita permissão para uma pasta externa
+          const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+          if (!permissions.granted) {
+            showAlert('Permissão necessária', 'Para baixar o arquivo, você precisa conceder permissão para salvar na pasta Downloads.');
+            setIsDownloadingFile(false);
+            return;
+          }
+          directoryUri = permissions.directoryUri;
+          await AsyncStorage.setItem('user_download_directory_uri', directoryUri);
+        }
+
+        // Lê o arquivo do cache temporário como base64
+        const base64Data = await tempCacheFile.base64();
+
+        // O SAF createFileAsync precisa do nome sem extensão
+        const extIndex = safeFilename.lastIndexOf('.');
+        const filenameWithoutExt = extIndex !== -1 ? safeFilename.substring(0, extIndex) : safeFilename;
+
+        // Cria o arquivo no diretório permitido
+        const fileUri = await StorageAccessFramework.createFileAsync(
+          directoryUri,
+          filenameWithoutExt,
+          'application/pdf'
+        );
+
+        // Escreve os dados em base64 no arquivo criado
+        await StorageAccessFramework.writeAsStringAsync(fileUri, base64Data, {
+          encoding: 'base64',
+        });
+
+        // Limpa o cache temporário
+        if (tempCacheFile.exists) tempCacheFile.delete();
+
+        console.log('[DOWNLOAD] Arquivo salvo no SAF:', fileUri);
+        showAlert(
+          'Download Concluído ✓',
+          `O arquivo "${safeFilename}" foi salvo com sucesso na pasta de downloads.`
+        );
+      } else {
+        // Fluxo para iOS/Outros: Usa a folha de compartilhamento/salvamento do sistema
+        const isSharingAvailable = await Sharing.isAvailableAsync();
+        if (isSharingAvailable) {
+          await Sharing.shareAsync(tempCacheFile.uri, {
+            mimeType: 'application/pdf',
+            dialogTitle: 'Salvar Resultados',
+          });
+          showAlert('Download', 'Selecione "Salvar em Arquivos" para salvar o exame.');
+        } else {
+          // Fallback para Paths.document
+          const docFile = new FSFile(Paths.document, safeFilename);
+          if (docFile.exists) docFile.delete();
+          tempCacheFile.copy(docFile);
+          if (tempCacheFile.exists) tempCacheFile.delete();
+          showAlert(
+            'Download Concluído ✓',
+            `O arquivo "${safeFilename}" foi salvo no armazenamento interno do app.`
+          );
+        }
+      }
+    } catch (err: any) {
+      console.error('[DOWNLOAD ERROR]', err);
+      showAlert('Erro ao baixar', err?.message || 'Não foi possível baixar o arquivo.');
+    } finally {
+      setIsDownloadingFile(false);
+    }
+  };
+
 
 
   if (!exam) {
@@ -180,7 +367,7 @@ export default function ExamDetails() {
               </View>
               <View style={styles.infoTextWrapper}>
                 <Text style={styles.infoLabel}>Tipo</Text>
-                <Text style={styles.infoValue}>{examTypeLabels[exam.type]}</Text>
+                <Text style={styles.infoValue}>{ExamTypeLabels[exam.type]}</Text>
               </View>
             </View>
           </View>
@@ -308,20 +495,44 @@ export default function ExamDetails() {
         {/* Outras Ações */}
         {exam.status === 'completed' && (
           <View style={styles.actionsContainer}>
-            <TouchableOpacity 
-              style={styles.outlineButton}
-              onPress={() => showAlert('Em breve', 'Funcionalidade de visualização em breve!')}
+            <TouchableOpacity
+              style={[
+                styles.greenButton,
+                !exam.fileUrl && styles.buttonDisabled,
+              ]}
+              onPress={handleOpenPDF}
+              disabled={isOpeningPDF || !exam.fileUrl}
+              activeOpacity={0.8}
             >
-              <Eye color={theme.text} size={18} style={styles.buttonIcon} />
-              <Text style={styles.outlineButtonText}>Visualizar Resultados</Text>
+              {isOpeningPDF ? (
+                <ActivityIndicator color="#ffffff" size="small" style={styles.buttonIcon} />
+              ) : (
+                <Eye color="#ffffff" size={18} style={styles.buttonIcon} />
+              )}
+              <Text style={styles.greenButtonText}>
+                {isOpeningPDF ? 'Abrindo...' : 'Abrir PDF'}
+              </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.outlineButton}
-              onPress={() => showAlert('Em breve', 'Funcionalidade de download em breve!')}
+
+
+            <TouchableOpacity
+              style={[
+                styles.outlineButton,
+                !exam.fileUrl && styles.buttonDisabled,
+              ]}
+              onPress={handleDownloadFile}
+              disabled={isDownloadingFile || !exam.fileUrl}
+              activeOpacity={0.8}
             >
-              <Download color={theme.text} size={18} style={styles.buttonIcon} />
-              <Text style={styles.outlineButtonText}>Baixar Resultados</Text>
+              {isDownloadingFile ? (
+                <ActivityIndicator color={theme.text} size="small" style={styles.buttonIcon} />
+              ) : (
+                <Download color={!exam.fileUrl ? theme.textSecondary : theme.text} size={18} style={styles.buttonIcon} />
+              )}
+              <Text style={[styles.outlineButtonText, !exam.fileUrl && { color: theme.textSecondary }]}>
+                {isDownloadingFile ? 'Baixando...' : 'Baixar Resultados'}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -513,6 +724,23 @@ const getStyles = (theme: ThemeColors, isDark: boolean) => StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: theme.border,
+  },
+  greenButton: {
+    flexDirection: 'row',
+    backgroundColor: '#10b981',
+    height: 48,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  greenButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  buttonDisabled: {
+    opacity: 0.45,
   },
   outlineButtonText: {
     color: theme.text,

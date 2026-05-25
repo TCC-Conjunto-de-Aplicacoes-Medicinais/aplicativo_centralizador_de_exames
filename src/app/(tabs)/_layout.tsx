@@ -10,6 +10,7 @@ export default function DevLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="dev-home" />
         <Stack.Screen name="test-security" />
+        <Stack.Screen name="test-ai" />
       </Stack>
     </ThemeProvider>
   );
