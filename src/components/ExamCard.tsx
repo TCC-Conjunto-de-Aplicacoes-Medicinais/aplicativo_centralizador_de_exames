@@ -1,7 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { MedicalExam } from '@/types/exam-flow-types';
+import { MedicalExam, ExamType, ExamTypeLabels } from '@/types/exam-flow-types';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { ThemedText } from './themed-text';
@@ -12,20 +12,21 @@ interface ExamCardProps {
   exam: MedicalExam;
 }
 
-const examTypeIcons: Record<string, React.ElementType> = {
-  'blood-test': Droplet,
-  'imaging': Activity,
-  'cardiology': Heart,
-  'urine-test': FlaskConical,
-  'report': FileText,
-};
-
-const examTypeLabels = {
-  'blood-test': 'Exame de Sangue',
-  'imaging': 'Imagem',
-  'cardiology': 'Cardiologia',
-  'urine-test': 'Exame de Urina',
-  'report': 'Relatório',
+const examTypeIcons: Record<ExamType, React.ElementType> = {
+  [ExamType.BLOOD_TEST]: Droplet,
+  [ExamType.URINE_TEST]: FlaskConical,
+  [ExamType.IMAGING]: Activity,
+  [ExamType.CARDIOLOGY]: Heart,
+  [ExamType.REPORT]: FileText,
+  [ExamType.ULTRASOUND]: Activity,
+  [ExamType.XRAY]: Activity,
+  [ExamType.MRI]: Activity,
+  [ExamType.CT_SCAN]: Activity,
+  [ExamType.ECG]: Heart,
+  [ExamType.EEG]: Activity,
+  [ExamType.ENDOSCOPY]: Activity,
+  [ExamType.BIOMARKER]: FlaskConical,
+  [ExamType.OTHER]: FileText,
 };
 
 const getStatusColors = (isDarkMode: boolean) => ({
@@ -103,7 +104,7 @@ export function ExamCard({ exam }: ExamCardProps) {
 
             <View style={styles.footer}>
               <ThemedText style={styles.type}>
-                {examTypeLabels[exam.type]}
+                {ExamTypeLabels[exam.type]}
               </ThemedText>
               <ThemedText style={styles.date}>
                 {formatDate(exam.date)}
