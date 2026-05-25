@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AccessRequest } from '../types/exam-flow-types';
-import { mockAccessRequests } from '../data/mockData';
+
 
 // --- Utilitários para decodificação JWT (compatível com Hermes) ---
 
@@ -68,7 +68,8 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [accessRequests, setAccessRequests] = useState<AccessRequest[]>(mockAccessRequests);
+  const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([]);
+
   const [emailVerified, setEmailVerified] = useState(true); // default true para não piscar
   const [givenName, setGivenName] = useState('Usuário');
   const [email, setEmail] = useState('');
