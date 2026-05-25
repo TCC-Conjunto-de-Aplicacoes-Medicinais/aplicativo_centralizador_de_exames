@@ -9,6 +9,7 @@ import {
   Modal,
   ScrollView,
   ActivityIndicator,
+  RefreshControl,
   } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Search, Upload, FileText, ChevronDown, Check, X, Calendar } from 'lucide-react-native';
@@ -34,6 +35,7 @@ export default function Home() {
 
   const [exams, setExams] = useState<MedicalExam[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const loadExams = async (showLoading = true) => {
     if (showLoading) setIsLoading(true);
@@ -47,6 +49,12 @@ export default function Home() {
       if (showLoading) setIsLoading(false);
     }
   };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadExams(false);
+    setRefreshing(false);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -303,6 +311,14 @@ export default function Home() {
           styles.listContent,
           { paddingTop: Math.max(insets.top, 16), paddingBottom: insets.bottom + 100 }
         ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[theme.primary]}
+            tintColor={theme.primary}
+          />
+        }
       />
 
       {/* Footer com Upload Fixo embaixo */}

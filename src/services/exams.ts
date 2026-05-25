@@ -89,8 +89,9 @@ export async function getExamByID(id: string): Promise<MedicalExam> {
 
     if (rawFilename && rawExamId) {
       filename = decodeURIComponent(rawFilename);
-      // Usa o apiBaseUrl do app (pode diferir do baseURL do backend em produção)
-      fileUrl = `${apiBaseUrl}/api/exams/file/${rawExamId}/${rawFilename}`;
+      // Garante que o filename na URL esteja devidamente codificado (ex: espaço -> %20)
+      const encodedFilename = encodeURIComponent(filename);
+      fileUrl = `${apiBaseUrl}/api/exams/file/${rawExamId}/${encodedFilename}`;
     }
   }
 
@@ -141,6 +142,19 @@ export async function downloadExamFileNative(
       DPoP: dpopProof,
     },
     idempotent: true,
+  });
+}
+
+/**
+ * Exclui (soft delete) um exame específico do paciente autenticado.
+ */
+export async function deleteExam(id: string): Promise<any> {
+  if (!apiBaseUrl) {
+    throw new Error('Variável de ambiente EXPO_PUBLIC_API_BASE_URL não está configurada.');
+  }
+
+  return authenticatedRequest(`${apiBaseUrl}/api/exams/${id}`, {
+    method: 'DELETE',
   });
 }
 

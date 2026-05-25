@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ChevronUp,
   ShieldCheck,
+  Trash2,
 } from 'lucide-react-native';
 
 import { File as FSFile, Paths } from 'expo-file-system';
@@ -38,7 +39,7 @@ import { useTheme, ThemeColors } from '@/context/ThemeContext';
 import { useCustomAlert } from '@/context/AlertContext';
 import { authenticatedRequest } from '@/services/auth';
 import { authenticateUser } from '@/security/signer';
-import { getExamByID, downloadExamFileNative } from '@/services/exams';
+import { getExamByID, downloadExamFileNative, deleteExam } from '@/services/exams';
 import { MedicalExam, ExamType, ExamTypeLabels } from '@/types/exam-flow-types';
 
 const examTypeIcons: Record<string, any> = {
@@ -92,6 +93,7 @@ export default function ExamDetails() {
   const [isDropdownOpen, setIsDropdownOpen] = React.useState<boolean>(false);
   const [isOpeningPDF, setIsOpeningPDF] = React.useState<boolean>(false);
   const [isDownloadingFile, setIsDownloadingFile] = React.useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = React.useState<boolean>(false);
 
   const [exam, setExam] = React.useState<MedicalExam | null>(null);
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
@@ -131,6 +133,29 @@ export default function ExamDetails() {
     );
   }
 
+  const handleDeleteExam = async () => {
+    if (!exam) return;
+
+    const authenticated = await authenticateUser(
+      'Confirme com sua biometria ou senha para excluir este exame permanentemente.'
+    );
+    if (!authenticated) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await deleteExam(exam.id);
+      showAlert('Sucesso', 'Exame excluído com sucesso!');
+      router.replace('/exam-flow/home');
+    } catch (err: any) {
+      console.log('[DELETE] Erro ao excluir exame:', err?.message);
+      showAlert('Erro', 'Não foi possível excluir o exame. Tente novamente.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleShareWithDoctor = async (doctorName: string) => {
     if (!exam || !doctorName) return;
 
@@ -143,7 +168,7 @@ export default function ExamDetails() {
     }
 
     try {
-      const shareUrl = `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/users/exams/share`;
+      const shareUrl = `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/exams/share`;
       await authenticatedRequest(shareUrl, {
         method: 'POST',
         data: {
@@ -534,6 +559,22 @@ export default function ExamDetails() {
                 {isDownloadingFile ? 'Baixando...' : 'Baixar Resultados'}
               </Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.redButton}
+              onPress={handleDeleteExam}
+              disabled={isDeleting}
+              activeOpacity={0.8}
+            >
+              {isDeleting ? (
+                <ActivityIndicator color="#ffffff" size="small" style={styles.buttonIcon} />
+              ) : (
+                <Trash2 color="#ffffff" size={18} style={styles.buttonIcon} />
+              )}
+              <Text style={styles.redButtonText}>
+                {isDeleting ? 'Excluindo...' : 'Excluir Exame'}
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -734,6 +775,19 @@ const getStyles = (theme: ThemeColors, isDark: boolean) => StyleSheet.create({
     justifyContent: 'center',
   },
   greenButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  redButton: {
+    flexDirection: 'row',
+    backgroundColor: '#ef4444',
+    height: 48,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  redButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
