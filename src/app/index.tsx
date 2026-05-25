@@ -28,6 +28,7 @@ import Animated, {
 import { Code2, Check } from 'lucide-react-native';
 
 import { login } from '@/services/auth';
+import LegalTermsModal from '@/components/LegalTermsModal';
 
 /** Formata CPF em tempo real: 123.456.789-01 */
 function formatCPF(value: string): string {
@@ -46,6 +47,7 @@ export default function LoginScreen() {
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [legalVisible, setLegalVisible] = useState(false);
   const passwordRef = useRef<TextInput>(null);
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -280,15 +282,32 @@ export default function LoginScreen() {
                     <Text style={styles.signupLink}>Cadastre-se</Text>
                   </TouchableOpacity>
                 </View>
+
+                {/* Rodapé com Termos e Privacidade */}
+                <TouchableOpacity 
+                  activeOpacity={0.7} 
+                  onPress={() => setLegalVisible(true)}
+                  style={styles.footerTermsButton}
+                >
+                  <Text style={styles.footerTermsText}>
+                    Termos de Uso e Política de Privacidade
+                  </Text>
+                </TouchableOpacity>
               </Animated.View>
             </View>
 
           </View>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
+
+      <LegalTermsModal
+        visible={legalVisible}
+        onClose={() => setLegalVisible(false)}
+      />
     </LinearGradient>
   );
 }
+
 
 const styles = StyleSheet.create({
   flex: {
@@ -495,4 +514,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textDecorationLine: 'underline',
   },
+  footerTermsButton: {
+    marginTop: 8,
+    alignSelf: 'center',
+  },
+  footerTermsText: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 12,
+    fontWeight: '500',
+    textDecorationLine: 'underline',
+    textAlign: 'center',
+  },
 });
+

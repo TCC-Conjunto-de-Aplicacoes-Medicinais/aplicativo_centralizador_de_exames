@@ -27,6 +27,8 @@ import { ArrowLeft } from 'lucide-react-native';
 import { useTheme, ThemeColors } from '@/context/ThemeContext';
 
 import { signup } from '@/services/auth';
+import LegalTermsModal from '@/components/LegalTermsModal';
+
 
 // --- Helpers ---
 
@@ -47,7 +49,7 @@ function extractCPFDigits(formatted: string): string {
 export default function SignupScreen() {
   const { theme, isDarkMode } = useTheme();
   const styles = getStyles(theme, isDarkMode);
-  const gradientColors = isDarkMode ? ['#1e293b', '#0f172a', '#020617'] : ['#059669', '#0d9488', '#0f766e'];
+  const gradientColors = isDarkMode ? ['#1e293b', '#0f172a', '#020617'] as const : ['#059669', '#0d9488', '#0f766e'] as const;
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -56,6 +58,8 @@ export default function SignupScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [legalVisible, setLegalVisible] = useState(false);
+
 
   // Focus refs
   const [nameFocused, setNameFocused] = useState(false);
@@ -329,12 +333,29 @@ export default function SignupScreen() {
                 <Text style={styles.loginLink}>Entrar</Text>
               </TouchableOpacity>
             </View>
+
+            {/* Rodapé com Termos e Privacidade */}
+            <TouchableOpacity 
+              activeOpacity={0.7} 
+              onPress={() => setLegalVisible(true)}
+              style={styles.footerTermsButton}
+            >
+              <Text style={styles.footerTermsText}>
+                Termos de Uso e Política de Privacidade
+              </Text>
+            </TouchableOpacity>
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <LegalTermsModal
+        visible={legalVisible}
+        onClose={() => setLegalVisible(false)}
+      />
     </LinearGradient>
   );
 }
+
 
 const getStyles = (theme: ThemeColors, isDarkMode: boolean) => StyleSheet.create({
   flex: {
@@ -484,6 +505,17 @@ const getStyles = (theme: ThemeColors, isDarkMode: boolean) => StyleSheet.create
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  footerTermsButton: {
+    marginTop: 8,
+    alignSelf: 'center',
+  },
+  footerTermsText: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 12,
+    fontWeight: '500',
+    textDecorationLine: 'underline',
     textAlign: 'center',
   },
 });
