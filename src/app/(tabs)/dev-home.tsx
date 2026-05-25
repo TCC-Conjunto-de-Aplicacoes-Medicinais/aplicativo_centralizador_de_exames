@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { FlaskConical, Shield } from 'lucide-react-native';
+import { FlaskConical, Shield, Brain } from 'lucide-react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -69,6 +69,21 @@ export default function DevHomeScreen() {
               <ThemedText style={styles.actionTitle}>Fluxo de Exames</ThemedText>
               <ThemedText themeColor="textSecondary" type="small">
                 Abrir tela principal de exames
+              </ThemedText>
+            </TouchableOpacity>
+
+            {/* Testar IA */}
+            <TouchableOpacity
+              style={[styles.actionCard, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
+              onPress={() => router.push('/test-ai' as any)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIconCircle, { backgroundColor: theme.tint + '18' }]}>
+                <Brain color={theme.tint} size={24} />
+              </View>
+              <ThemedText style={styles.actionTitle}>Testar IA</ThemedText>
+              <ThemedText themeColor="textSecondary" type="small">
+                Fluxo de análise de exames e sintomas com Gemini
               </ThemedText>
             </TouchableOpacity>
           </View>
