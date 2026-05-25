@@ -43,6 +43,8 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { authenticatedRequest, logout, refresh } from '@/services/auth';
+import LegalTermsModal from '@/components/LegalTermsModal';
+
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 const ACCESS_TOKEN_KEY = '@auth_access_token';
@@ -258,10 +260,9 @@ export default function SettingsScreen() {
   const styles = getStyles(theme);
   const { showAlert } = useCustomAlert();
 
-  // Estados para as políticas e termos
+  // Estado para política e termos
   const [legalModalVisible, setLegalModalVisible] = useState(false);
-  const [legalModalTitle, setLegalModalTitle] = useState('');
-  const [legalModalContent, setLegalModalContent] = useState<React.ReactNode | null>(null);
+
 
   // Refs para navegação entre campos
   const phoneRef = useRef<TextInput>(null);
@@ -407,88 +408,7 @@ export default function SettingsScreen() {
     );
   };
 
-  const renderPrivacyPolicy = () => (
-    <View style={{ gap: 16 }}>
-      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>1. Introdução</Text>
-      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
-        Esta Política de Privacidade descreve como o Centralizador de Exames (Conjunto de Aplicações Medicinais) coleta, usa, armazena e protege os dados pessoais e clínicos dos usuários. Ao utilizar o aplicativo, você concorda com as práticas descritas neste documento.
-      </Text>
 
-      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>2. Coleta de Dados</Text>
-      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
-        Coletamos informações necessárias para a prestação dos serviços de centralização médica, incluindo:
-      </Text>
-      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20, paddingLeft: 8 }}>
-        • Dados Cadastrais: Nome completo, endereço de e-mail, número de telefone e endereço residencial.{"\n"}
-        • Dados de Saúde: Laudos de exames laboratoriais e de imagem, históricos médicos e notas clínicas inseridas ou importadas pelo usuário.
-      </Text>
-
-      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>3. Segurança da Informação</Text>
-      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
-        Adotamos medidas rigorosas de segurança, como criptografia de ponta a ponta no armazenamento e tráfego dos dados, controle de acesso baseado no Keycloak e monitoramento constante contra acessos não autorizados. Os dados clínicos são de sua propriedade exclusiva.
-      </Text>
-
-      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>4. Seus Direitos (LGPD)</Text>
-      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
-        Em conformidade com a Lei Geral de Proteção de Dados (LGPD), você tem o direito de confirmar a existência de tratamento de seus dados, acessar seus registros, solicitar a correção de dados incompletos ou inexatos, e requerer a exclusão permanente de sua conta e histórico médico do nosso banco de dados a qualquer momento.
-      </Text>
-
-      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>5. Contato e Suporte</Text>
-      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
-        Para exercer seus direitos de privacidade ou esclarecer dúvidas, envie uma mensagem para o nosso Encarregado de Proteção de Dados (DPO) pelo e-mail:
-        {"\n"}
-        <Text style={{ fontWeight: '600', color: '#0d9488' }}>conjuntoaplicacoemedicinais@gmail.com</Text>
-      </Text>
-    </View>
-  );
-
-  const renderTermsOfUse = () => (
-    <View style={{ gap: 16 }}>
-      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>1. Aceitação dos Termos</Text>
-      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
-        Ao criar uma conta ou utilizar os serviços do Centralizador de Exames, você concorda em cumprir e estar legalmente vinculado a estes Termos de Uso. Caso não concorde, por favor, não utilize a plataforma.
-      </Text>
-
-      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>2. Descrição dos Serviços</Text>
-      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
-        O aplicativo funciona como um agregador pessoal de registros e exames médicos. Ele facilita a organização, visualização e o compartilhamento seguro de exames diretamente entre você e os seus profissionais de saúde de confiança.
-      </Text>
-
-      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.danger }}>3. Isenção de Responsabilidade Médica</Text>
-      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20, fontWeight: '600' }}>
-        ATENÇÃO: O Centralizador de Exames NÃO presta serviços de aconselhamento médico, diagnóstico ou tratamento. O aplicativo é uma ferramenta de suporte organizacional. Nenhuma informação contida na plataforma deve substituir a consulta com um médico qualificado. Sempre consulte seu médico antes de tomar decisões com base em laudos.
-      </Text>
-
-      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>4. Uso Aceitável e Responsabilidade do Usuário</Text>
-      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
-        Você é responsável por manter a confidencialidade das credenciais de sua conta e por todas as atividades realizadas sob sua autenticação. É proibido fazer upload de conteúdo que viole a legislação vigente, que pertença a terceiros sem autorização ou que contenha códigos maliciosos.
-      </Text>
-
-      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>5. Propriedade Intelectual</Text>
-      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
-        Todos os direitos de propriedade intelectual relacionados ao software do aplicativo, marcas, design e código-fonte pertencem ao Conjunto de Aplicações Medicinais. Você recebe uma licença de uso limitada, não exclusiva e revogável apenas para fins pessoais.
-      </Text>
-
-      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>6. Suporte</Text>
-      <Text style={{ fontSize: 14, color: theme.textSecondary, lineHeight: 20 }}>
-        Em caso de dúvidas sobre as regras de utilização, entre em contato através do canal de atendimento ao usuário:
-        {"\n"}
-        <Text style={{ fontWeight: '600', color: '#0d9488' }}>conjuntoaplicacoemedicinais@gmail.com</Text>
-      </Text>
-    </View>
-  );
-
-  const handlePrivacyPolicy = () => {
-    setLegalModalTitle('Política de Privacidade');
-    setLegalModalContent(renderPrivacyPolicy());
-    setLegalModalVisible(true);
-  };
-
-  const handleTerms = () => {
-    setLegalModalTitle('Termos de Uso');
-    setLegalModalContent(renderTermsOfUse());
-    setLegalModalVisible(true);
-  };
 
   const handleSupport = () => {
     showAlert(
@@ -714,16 +634,11 @@ export default function SettingsScreen() {
       <Animated.View entering={FadeInDown.delay(600).duration(500)} style={styles.card}>
         <SettingRow
           icon={FileText}
-          label="Política de Privacidade"
-          onPress={handlePrivacyPolicy}
-        />
-        <View style={styles.divider} />
-        <SettingRow
-          icon={FileText}
-          label="Termos de Uso"
-          onPress={handleTerms}
+          label="Termos e Privacidade"
+          onPress={() => setLegalModalVisible(true)}
         />
       </Animated.View>
+
 
       {/* ===== SEÇÃO: SOBRE ===== */}
       <SectionHeader icon={Info} title="Sobre" delay={650} />
@@ -756,45 +671,11 @@ export default function SettingsScreen() {
     </ScrollView>
 
     {/* Modal para Políticas Legais */}
-    <Modal
-      animationType="slide"
-      transparent={true}
+    <LegalTermsModal
       visible={legalModalVisible}
-      onRequestClose={() => setLegalModalVisible(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          {/* Header do Modal */}
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{legalModalTitle}</Text>
-            <TouchableOpacity
-              onPress={() => setLegalModalVisible(false)}
-              style={styles.modalCloseButton}
-            >
-              <X color={theme.text} size={24} />
-            </TouchableOpacity>
-          </View>
+      onClose={() => setLegalModalVisible(false)}
+    />
 
-          {/* Conteúdo do Modal */}
-          <ScrollView
-            contentContainerStyle={styles.modalScrollContent}
-            showsVerticalScrollIndicator={true}
-          >
-            {legalModalContent}
-          </ScrollView>
-
-          {/* Rodapé com botão de fechar */}
-          <View style={styles.modalFooter}>
-            <TouchableOpacity
-              style={styles.modalPrimaryButton}
-              onPress={() => setLegalModalVisible(false)}
-            >
-              <Text style={styles.modalPrimaryButtonText}>Entendi</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
   </>
 );
 }
