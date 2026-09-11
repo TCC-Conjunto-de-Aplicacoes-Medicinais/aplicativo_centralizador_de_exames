@@ -27,10 +27,10 @@ Conforme descrito nas Seções **3.2, 4.2, 5, 6.1 e 7** do artigo:
 
 ### ⏳ 3. Pendências e Itens Faltantes para Alinhamento com a Documentação
 
-#### 3.1. Sincronização de Branches no Git — 🚨 URGENTE
-- [ ] **Fazer Merge da branch `dev` para a branch `main`:**
-  - *Problema:* A branch `main` no GitHub possui apenas o primeiro commit com um `README.md` vazio (36 bytes). Todo o código-fonte desenvolvido reside na branch `dev`.
-  - *Ação:* Executar `git checkout main && git merge dev && git push origin main` para disponibilizar o código publicamente como citado no artigo.
+#### 3.1. Sincronização de Branches no Git — ✅ CONCLUÍDO
+- [x] **Fazer Merge da branch `dev` para a branch `main`:**
+  - Merge concluído resolvendo o conflito em `.env.example`.
+  - Branches `main` e `dev` sincronizadas e enviadas para o GitHub (`git push origin main && git push origin dev`).
 
 #### 3.2. Interface de Gestão Descentralizada de Consentimentos — 🚨 GAP CRÍTICO
 - [ ] **Criar a Tela de Consentimentos do Paciente:**
