@@ -3,13 +3,12 @@ import { View, Text, TouchableOpacity, StyleSheet, Modal, Dimensions } from 'rea
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { useAnimatedStyle, withTiming, Easing, FadeIn, FadeOut } from 'react-native-reanimated';
-import { Bell, ArrowLeft, Key, Settings, Mail, X } from 'lucide-react-native';
+import Animated, { useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
+import { Bell, ArrowLeft, Settings, Mail, X, ShieldCheck } from 'lucide-react-native';
 
 // Importações do seu projeto
 import { AppProvider, useApp } from '@/context/AppContext';
 import { useTheme, ThemeColors } from '@/context/ThemeContext';
-import { useCustomAlert } from '@/context/AlertContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -74,7 +73,6 @@ function EmailVerifyPopup({ visible, onClose, onGoToSettings }: {
 function CustomHeader({ route, navigation }: any) {
   const { theme } = useTheme();
   const styles = getStyles(theme);
-  const { showAlert } = useCustomAlert();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { unreadCount, emailVerified, givenName } = useApp();
@@ -84,6 +82,7 @@ function CustomHeader({ route, navigation }: any) {
 
   const isHomePage = route.name === 'home';
   const isSettingsPage = route.name === 'settings';
+  const isConsentsPage = route.name === 'consents';
   const showBackButton = !isHomePage;
 
   // Lógica da animação de 10 segundos na Home
@@ -106,9 +105,6 @@ function CustomHeader({ route, navigation }: any) {
     }
   }, [isHomePage, emailVerified, popupDismissed]);
 
-  const handleAuthenticator = () => {
-    showAlert('Autenticador', 'Gerar código de acesso seguro');
-  };
 
   const handleSettings = () => {
     router.push('/exam-flow/settings');
@@ -190,18 +186,22 @@ function CustomHeader({ route, navigation }: any) {
           ) : (
             <View style={styles.staticTitleContainer}>
               <Text style={styles.titleTextDark} numberOfLines={1} adjustsFontSizeToFit>
-                {isSettingsPage ? 'Configurações' : 'Detalhes do Exame'}
+                {isSettingsPage
+                  ? 'Configurações'
+                  : isConsentsPage
+                  ? 'Gestão de Consentimentos'
+                  : 'Detalhes do Exame'}
               </Text>
             </View>
           )}
         </View>
       </View>
 
-      {/* Lado Direito (Ações) — oculto na tela de Configurações */}
-      {!isSettingsPage && (
+      {/* Lado Direito (Ações) — oculto na tela de Configurações e Consentimentos */}
+      {!isSettingsPage && !isConsentsPage && (
         <View style={styles.actionsSection}>
-          <TouchableOpacity onPress={handleAuthenticator} style={styles.actionButton}>
-            <Key color={isHomePage ? theme.headerText : theme.text} size={24} />
+          <TouchableOpacity onPress={() => router.push('/exam-flow/consents')} style={styles.actionButton}>
+            <ShieldCheck color={isHomePage ? theme.headerText : theme.text} size={24} />
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => {/* setNotificationOpen(true) */}} style={styles.actionButton}>
@@ -269,6 +269,7 @@ export default function ExamFlowLayout() {
         <Stack.Screen name="home" />
         <Stack.Screen name="exam/[id]" />
         <Stack.Screen name="settings" />
+        <Stack.Screen name="consents" />
         <Stack.Screen name="verify-email-code" />
       </Stack>
 

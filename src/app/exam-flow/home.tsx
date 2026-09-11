@@ -12,13 +12,13 @@ import {
   RefreshControl,
   } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Upload, FileText, ChevronDown, Check, X, Calendar } from 'lucide-react-native';
+import { Search, Upload, FileText, ChevronDown, Check, X, Calendar, ShieldCheck, ChevronRight } from 'lucide-react-native';
 import { useTheme, ThemeColors } from '@/context/ThemeContext';
 import { useCustomAlert } from '@/context/AlertContext';
 import * as DocumentPicker from 'expo-document-picker';
 import { ExamType, ExamTypeLabels, MedicalExam } from '@/types/exam-flow-types';
 import { uploadExam, getExams } from '@/services/exams';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 // Assumindo que essas importações existem no seu projeto mobile
 import { ExamCard } from '@/components/ExamCard';
@@ -29,6 +29,7 @@ export default function Home() {
   const { theme } = useTheme();
   const styles = getStyles(theme);
   const { showAlert } = useCustomAlert();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('all');
   const insets = useSafeAreaInsets(); // Pega as margens de segurança reais do aparelho
@@ -229,6 +230,24 @@ export default function Home() {
   // O Header da Lista (Busca e Filtros)
   const renderHeader = () => (
     <View style={styles.headerContainer}>
+      {/* Banner de Gestão de Consentimentos (LGPD & DPoP) */}
+      <TouchableOpacity
+        style={styles.consentsBanner}
+        activeOpacity={0.85}
+        onPress={() => router.push('/exam-flow/consents')}
+      >
+        <View style={styles.consentsBannerIcon}>
+          <ShieldCheck color="#059669" size={22} />
+        </View>
+        <View style={styles.consentsBannerContent}>
+          <Text style={styles.consentsBannerTitle}>Gestão de Consentimentos</Text>
+          <Text style={styles.consentsBannerSubtitle}>
+            Autorize ou revogue acessos com criptografia DPoP
+          </Text>
+        </View>
+        <ChevronRight color={theme.textSecondary} size={18} />
+      </TouchableOpacity>
+
       {/* Search Bar */}
       <View style={styles.searchBar}>
         <Search color="#94a3b8" size={20} style={styles.searchIcon} />
@@ -309,7 +328,7 @@ export default function Home() {
         ListEmptyComponent={renderEmpty}
         contentContainerStyle={[
           styles.listContent,
-          { paddingTop: Math.max(insets.top, 16), paddingBottom: insets.bottom + 100 }
+          { paddingTop: 12, paddingBottom: insets.bottom + 100 }
         ]}
         refreshControl={
           <RefreshControl
@@ -531,6 +550,37 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   headerContainer: {
     marginBottom: 16,
     gap: 12,
+  },
+  consentsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.border,
+    padding: 12,
+    gap: 12,
+  },
+  consentsBannerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.card === '#ffffff' ? '#ecfdf5' : 'rgba(5,150,105,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  consentsBannerContent: {
+    flex: 1,
+  },
+  consentsBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.text,
+  },
+  consentsBannerSubtitle: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginTop: 2,
   },
   searchBar: {
     flexDirection: 'row',

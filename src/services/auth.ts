@@ -10,7 +10,7 @@
  *   - Um mutex garante que apenas UM refresh execute por vez (evita race conditions).
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSecureItem, setSecureItem, removeSecureItem } from '@/security/storage';
 import * as Device from 'expo-device';
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { createDPoPProof, clearDPoPKeys, exportPublicJWK } from '@/security/dpop';
@@ -136,14 +136,14 @@ export async function login(cpf: string, password: string, rememberMe: boolean =
     
     // Armazena access token e expiry sempre. Refresh token só se rememberMe for true.
     const storagePromises = [
-      AsyncStorage.setItem(ACCESS_TOKEN_KEY, loginData.access_token),
-      AsyncStorage.setItem(TOKEN_EXPIRY_KEY, expiresAt.toString()),
+      setSecureItem(ACCESS_TOKEN_KEY, loginData.access_token),
+      setSecureItem(TOKEN_EXPIRY_KEY, expiresAt.toString()),
     ];
 
     if (rememberMe && loginData.refresh_token) {
-      storagePromises.push(AsyncStorage.setItem(REFRESH_TOKEN_KEY, loginData.refresh_token));
+      storagePromises.push(setSecureItem(REFRESH_TOKEN_KEY, loginData.refresh_token));
     } else {
-      storagePromises.push(AsyncStorage.removeItem(REFRESH_TOKEN_KEY));
+      storagePromises.push(removeSecureItem(REFRESH_TOKEN_KEY));
     }
 
     await Promise.all(storagePromises);
@@ -190,7 +190,7 @@ export async function refresh(): Promise<RefreshResponse> {
  * Execução interna do refresh (chamada apenas pelo mutex).
  */
 async function _doRefresh(): Promise<RefreshResponse> {
-  const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+  const refreshToken = await getSecureItem(REFRESH_TOKEN_KEY);
 
   if (!refreshToken) {
     throw new Error('Nenhum refresh token disponível');
@@ -214,11 +214,11 @@ async function _doRefresh(): Promise<RefreshResponse> {
     // Atualiza tokens
     const expiresAt = Date.now() + refreshData.expires_in * 1000;
     await Promise.all([
-      AsyncStorage.setItem(ACCESS_TOKEN_KEY, refreshData.access_token),
-      AsyncStorage.setItem(TOKEN_EXPIRY_KEY, expiresAt.toString()),
+      setSecureItem(ACCESS_TOKEN_KEY, refreshData.access_token),
+      setSecureItem(TOKEN_EXPIRY_KEY, expiresAt.toString()),
       // Atualiza refresh token se vier um novo (Keycloak geralmente rotaciona)
       refreshData.refresh_token
-        ? AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshData.refresh_token)
+        ? setSecureItem(REFRESH_TOKEN_KEY, refreshData.refresh_token)
         : Promise.resolve(),
     ]);
 
@@ -251,9 +251,9 @@ async function _doRefresh(): Promise<RefreshResponse> {
  */
 export async function logout(): Promise<void> {
   await Promise.all([
-    AsyncStorage.removeItem(ACCESS_TOKEN_KEY),
-    AsyncStorage.removeItem(REFRESH_TOKEN_KEY),
-    AsyncStorage.removeItem(TOKEN_EXPIRY_KEY),
+    removeSecureItem(ACCESS_TOKEN_KEY),
+    removeSecureItem(REFRESH_TOKEN_KEY),
+    removeSecureItem(TOKEN_EXPIRY_KEY),
     clearDPoPKeys(),
   ]);
   console.log('[AUTH] Logout realizado, tokens limpos.');
@@ -268,8 +268,8 @@ export async function logout(): Promise<void> {
  */
 export async function getToken(): Promise<string | null> {
   const [token, expiryStr] = await Promise.all([
-    AsyncStorage.getItem(ACCESS_TOKEN_KEY),
-    AsyncStorage.getItem(TOKEN_EXPIRY_KEY),
+    getSecureItem(ACCESS_TOKEN_KEY),
+    getSecureItem(TOKEN_EXPIRY_KEY),
   ]);
 
   if (!token || !expiryStr) return null;
@@ -282,7 +282,7 @@ export async function getToken(): Promise<string | null> {
     console.log('[AUTH] Token expirado/prestes a expirar, tentando refresh...');
     try {
       await refresh();
-      return AsyncStorage.getItem(ACCESS_TOKEN_KEY);
+      return getSecureItem(ACCESS_TOKEN_KEY);
     } catch {
       return null;
     }

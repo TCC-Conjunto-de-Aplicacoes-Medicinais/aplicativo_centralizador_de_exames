@@ -119,11 +119,13 @@ export default function LoginScreen() {
     }
   };
 
+  const isDevEnabled = __DEV__ && process.env.EXPO_PUBLIC_ENABLE_DEV_MENU === 'true';
+
   const handleDevAccess = () => {
-    router.push('/dev-home');
+    if (isDevEnabled) {
+      router.push('/dev-home');
+    }
   };
-
-
 
   return (
     <LinearGradient
@@ -139,20 +141,22 @@ export default function LoginScreen() {
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
 
-            {/* Botão Dev — canto superior direito */}
-            <Animated.View
-              entering={FadeInUp.delay(800).duration(600)}
-              style={[styles.devButtonWrapper, { top: insets.top + 8 }]}
-            >
-              <TouchableOpacity
-                onPress={handleDevAccess}
-                style={styles.devButton}
-                activeOpacity={0.7}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            {/* Botão Dev — apenas visível na branch dev quando ativado */}
+            {isDevEnabled && (
+              <Animated.View
+                entering={FadeInUp.delay(800).duration(600)}
+                style={[styles.devButtonWrapper, { top: insets.top + 8 }]}
               >
-                <Code2 color="rgba(255,255,255,0.5)" size={20} />
-              </TouchableOpacity>
-            </Animated.View>
+                <TouchableOpacity
+                  onPress={handleDevAccess}
+                  style={styles.devButton}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                  <Code2 color="rgba(255,255,255,0.5)" size={20} />
+                </TouchableOpacity>
+              </Animated.View>
+            )}
 
             {/* Conteúdo central */}
             <View style={styles.content}>
@@ -163,7 +167,7 @@ export default function LoginScreen() {
               >
                 <View style={styles.logoContainer}>
                   <Image
-                    source={require('@/assets/images/logo.png')}
+                    source={require('@/assets/images/logo_pohinc.svg')}
                     style={styles.logo}
                     contentFit="contain"
                   />
@@ -347,22 +351,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   logoContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 130,
+    height: 130,
+    borderRadius: 65,
     backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginTop: -36,
+    marginBottom: 14,
     shadowColor: '#ffffff',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
+    shadowOpacity: 0.35,
+    shadowRadius: 22,
     elevation: 8,
   },
   logo: {
-    width: 96,
-    height: 96,
+    width: 104,
+    height: 104,
   },
   appTitle: {
     fontSize: 26,

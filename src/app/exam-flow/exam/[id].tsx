@@ -32,7 +32,8 @@ import {
 
 import { File as FSFile, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { StorageAccessFramework } from 'expo-file-system/legacy';
+import { getContentUriAsync, StorageAccessFramework } from 'expo-file-system/legacy';
+import * as IntentLauncher from 'expo-intent-launcher';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useTheme, ThemeColors } from '@/context/ThemeContext';
@@ -40,6 +41,7 @@ import { useCustomAlert } from '@/context/AlertContext';
 import { authenticatedRequest } from '@/services/auth';
 import { authenticateUser } from '@/security/signer';
 import { getExamByID, downloadExamFileNative, deleteExam } from '@/services/exams';
+import { createDirectConsent } from '@/services/consents';
 import { MedicalExam, ExamType, ExamTypeLabels } from '@/types/exam-flow-types';
 
 const examTypeIcons: Record<string, any> = {
@@ -168,19 +170,34 @@ export default function ExamDetails() {
     }
 
     try {
+      // 1. Notifica o backend centralizador para registrar o compartilhamento e auditoria
       const shareUrl = `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/exams/share`;
       await authenticatedRequest(shareUrl, {
         method: 'POST',
         data: {
-          exam_id: exam.id,
+          exam_id: String(exam.id),
           doctor_name: doctorName,
         },
       });
+
+      // 2. Registra o consentimento no armazenamento descentralizado local (DPoP assinado via hardware)
+      await createDirectConsent(
+        doctorName,
+        exam.facility || 'Clínica / Consultório',
+        `Acesso liberado ao exame: ${exam.name}`,
+        30,
+        true, // skipAuth: já autenticado com biometria acima
+        String(exam.id)
+      );
+
       showAlert('Sucesso', `Exame compartilhado com ${doctorName} com sucesso!`);
       setSelectedDoctor('');
     } catch (err: any) {
-      console.log('[SHARE] Erro ao compartilhar exame:', err?.message);
-      showAlert('Erro', 'Não foi possível compartilhar o exame. Tente novamente.');
+      console.log('[SHARE] Erro ao compartilhar no backend:', err?.message, 'Detalhes:', err?.response?.data);
+      showAlert(
+        'Erro ao compartilhar',
+        'Não foi possível concluir o compartilhamento no servidor centralizador. Tente novamente mais tarde.'
+      );
     }
   };
 
@@ -204,22 +221,38 @@ export default function ExamDetails() {
 
       console.log('[OPEN_PDF] Arquivo salvo em cache. URI:', cacheFile.uri);
 
-      // Verifica se o compartilhamento está disponível no dispositivo
-      const isSharingAvailable = await Sharing.isAvailableAsync();
-      if (isSharingAvailable) {
-        // Abre o visualizador/compartilhador do sistema que permite visualizar o PDF
-        await Sharing.shareAsync(cacheFile.uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: 'Abrir PDF',
-        });
+      if (Platform.OS === 'android') {
+        try {
+          // No Android, gera a content URI segura do FileProvider e dispara ACTION_VIEW
+          // Isso instrui o sistema a sugerir leitores de PDF (ex: Drive PDF Viewer, Adobe, etc.)
+          const contentUri = await getContentUriAsync(cacheFile.uri);
+          await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+            data: contentUri,
+            flags: 1, // Intent.FLAG_GRANT_READ_URI_PERMISSION
+            type: 'application/pdf',
+          });
+        } catch (intentErr) {
+          console.warn('[OPEN_PDF] Falha ao abrir via ACTION_VIEW, usando fallback:', intentErr);
+          await Sharing.shareAsync(cacheFile.uri, {
+            mimeType: 'application/pdf',
+            dialogTitle: 'Visualizar PDF',
+          });
+        }
       } else {
-        // Fallback usando o Linking comum
-        const openUri = cacheFile.contentUri || cacheFile.uri;
-        await Linking.openURL(openUri);
+        // No iOS, abre o visualizador nativo de documentos
+        const isSharingAvailable = await Sharing.isAvailableAsync();
+        if (isSharingAvailable) {
+          await Sharing.shareAsync(cacheFile.uri, {
+            mimeType: 'application/pdf',
+            dialogTitle: 'Visualizar PDF',
+          });
+        } else {
+          await Linking.openURL(cacheFile.uri);
+        }
       }
     } catch (err: any) {
       console.error('[OPEN_PDF ERROR]', err);
-      showAlert('Erro ao abrir PDF', err?.message || 'Não foi possível abrir o visualizador.');
+      showAlert('Erro ao abrir PDF', err?.message || 'Não foi possível abrir o visualizador de PDF.');
     } finally {
       setIsOpeningPDF(false);
     }

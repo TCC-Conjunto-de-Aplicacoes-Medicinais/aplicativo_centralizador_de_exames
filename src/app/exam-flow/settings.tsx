@@ -38,6 +38,7 @@ import {
   HelpCircle,
   Mail,
   X,
+  ShieldCheck,
 } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -629,9 +630,16 @@ export default function SettingsScreen() {
         />
       </Animated.View>
 
-      {/* ===== SEÇÃO: PRIVACIDADE ===== */}
-      <SectionHeader icon={Shield} title="Privacidade" delay={550} />
+      {/* ===== SEÇÃO: PRIVACIDADE & CONSENTIMENTOS ===== */}
+      <SectionHeader icon={Shield} title="Privacidade & Consentimentos" delay={550} />
       <Animated.View entering={FadeInDown.delay(600).duration(500)} style={styles.card}>
+        <SettingRow
+          icon={ShieldCheck}
+          label="Gestão de Consentimentos (DPoP)"
+          value="Soberania do Paciente"
+          onPress={() => router.push('/exam-flow/consents')}
+        />
+        <View style={styles.divider} />
         <SettingRow
           icon={FileText}
           label="Termos e Privacidade"
