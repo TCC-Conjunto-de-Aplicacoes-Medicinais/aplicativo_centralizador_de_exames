@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSecureItem } from '@/security/storage';
 import { AccessRequest } from '../types/exam-flow-types';
 
 
@@ -81,7 +81,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /** Lê o access_token do AsyncStorage e extrai email_verified */
   const refreshEmailStatus = useCallback(async () => {
     try {
-      const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
+      const token = await getSecureItem(ACCESS_TOKEN_KEY);
       if (!token) return;
 
       const payload = decodeJwtPayload(token);

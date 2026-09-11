@@ -28,10 +28,12 @@
     "expo-font": "55.0.5-canary-20260328-2049187",
     "expo-glass-effect": "55.0.9-canary-20260328-2049187",
     "expo-image": "55.0.7-canary-20260328-2049187",
+    "expo-intent-launcher": "^55.0.10-canary-20260328-2049187",
     "expo-linear-gradient": "55.0.10-canary-20260328-2049187",
     "expo-linking": "55.0.10-canary-20260328-2049187",
     "expo-navigation-bar": "55.0.10-canary-20260328-2049187",
     "expo-router": "55.0.9-canary-20260328-2049187",
+    "expo-secure-store": "^14.0.0",
     "expo-sharing": "55.0.15-canary-20260328-2049187",
     "expo-splash-screen": "55.0.14-canary-20260328-2049187",
     "expo-status-bar": "55.0.5-canary-20260328-2049187",
@@ -57,6 +59,9 @@
     "eslint": "^9.0.0",
     "eslint-config-expo": "55.0.1-canary-20260328-2049187",
     "typescript": "~5.9.2"
+  },
+  "overrides": {
+    "react-native": "0.83.4"
   },
   "private": true
 }

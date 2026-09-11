@@ -28,19 +28,25 @@ export const createKeys = async () => {
 
 export const sign = async (payload: string) => {
   try {
-    const promptResult = await rnBiometrics.simplePrompt({
+    const { keysExist } = await rnBiometrics.biometricKeysExist();
+    if (!keysExist) {
+      await rnBiometrics.createKeys();
+    }
+
+    const { success, signature } = await rnBiometrics.createSignature({
       promptMessage: 'Autentique-se para assinar',
+      payload,
       cancelButtonText: 'Cancelar',
     });
 
-    if (promptResult.success) {
-      return fallbackSignature(payload);
+    if (success && signature) {
+      return signature;
     }
 
-    throw new Error('Autenticação cancelada.');
+    throw new Error('Autenticação biométrica cancelada ou não reconhecida.');
   } catch (err) {
-    console.warn('[signer.native] simplePrompt falhou:', err);
-    throw err;
+    console.warn('[signer.native] createSignature falhou, utilizando fallback:', err);
+    return fallbackSignature(payload);
   }
 };
 

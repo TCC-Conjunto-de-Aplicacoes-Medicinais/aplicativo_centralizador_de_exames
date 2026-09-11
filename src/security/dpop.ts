@@ -6,7 +6,7 @@
  * Chaves são persistidas no AsyncStorage (uma por dispositivo).
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSecureItem, setSecureItem, removeSecureItem } from '@/security/storage';
 import { p256 } from '@noble/curves/nist.js';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 import * as Crypto from 'expo-crypto';
@@ -68,7 +68,7 @@ function derToRawSignature(signature: Uint8Array): Uint8Array {
 
 /** Gera ou recupera a chave privada EC P-256 persistida */
 async function getOrCreatePrivateKey(): Promise<Uint8Array> {
-  const stored = await AsyncStorage.getItem(PRIVATE_KEY_STORAGE_KEY);
+  const stored = await getSecureItem(PRIVATE_KEY_STORAGE_KEY);
 
   if (stored) {
     return hexToBytes(stored);
@@ -81,8 +81,8 @@ async function getOrCreatePrivateKey(): Promise<Uint8Array> {
   // (deve ser > 0 e < order da curva — @noble/curves valida automaticamente ao usar)
   const privateKeyHex = bytesToHex(randomBytes);
 
-  // Persiste em hex
-  await AsyncStorage.setItem(PRIVATE_KEY_STORAGE_KEY, privateKeyHex);
+  // Persiste em hex no SecureStore
+  await setSecureItem(PRIVATE_KEY_STORAGE_KEY, privateKeyHex);
 
   return randomBytes;
 }
@@ -152,5 +152,5 @@ export async function createDPoPProof(method: string, url: string): Promise<stri
  * Útil para logout completo ou reset do dispositivo.
  */
 export async function clearDPoPKeys(): Promise<void> {
-  await AsyncStorage.removeItem(PRIVATE_KEY_STORAGE_KEY);
+  await removeSecureItem(PRIVATE_KEY_STORAGE_KEY);
 }
