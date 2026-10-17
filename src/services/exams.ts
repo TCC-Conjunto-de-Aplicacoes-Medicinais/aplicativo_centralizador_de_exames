@@ -4,7 +4,7 @@ import axios from 'axios';
 import { createDPoPProof } from '@/security/dpop';
 import { File as FSFile } from 'expo-file-system';
 
-const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.pohinc.com.br';
 
 function getExamName(linkBucket: string, examType: string): string {
   if (!linkBucket) return examType;

@@ -8,6 +8,7 @@
  * (que não aceita caracteres como '@' nas chaves) e fallback seguro caso necessário.
  */
 
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -17,9 +18,14 @@ function sanitizeKey(key: string): string {
 }
 
 /**
- * Salva um valor de forma segura no SecureStore.
+ * Salva um valor de forma segura no SecureStore (ou AsyncStorage na Web).
  */
 export async function setSecureItem(key: string, value: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    await AsyncStorage.setItem(key, value);
+    return;
+  }
+
   const safeKey = sanitizeKey(key);
   try {
     await SecureStore.setItemAsync(safeKey, value, {
@@ -32,10 +38,14 @@ export async function setSecureItem(key: string, value: string): Promise<void> {
 }
 
 /**
- * Recupera um valor do SecureStore.
- * Se não encontrar, tenta ler do AsyncStorage legado para migração transparente.
+ * Recupera um valor do SecureStore (ou AsyncStorage na Web).
+ * No nativo, se não encontrar, tenta ler do AsyncStorage legado para migração transparente.
  */
 export async function getSecureItem(key: string): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    return AsyncStorage.getItem(key);
+  }
+
   const safeKey = sanitizeKey(key);
   try {
     const value = await SecureStore.getItemAsync(safeKey);
@@ -46,7 +56,7 @@ export async function getSecureItem(key: string): Promise<string | null> {
     console.warn(`[storage] Erro ao ler do SecureStore para "${safeKey}":`, err);
   }
 
-  // Fallback / Migração de versão legada em AsyncStorage
+  // Fallback / Migração de versão legada em AsyncStorage (apenas nativo)
   try {
     const legacyValue = await AsyncStorage.getItem(key);
     if (legacyValue !== null) {
@@ -66,6 +76,11 @@ export async function getSecureItem(key: string): Promise<string | null> {
  * Remove um valor do SecureStore e do AsyncStorage.
  */
 export async function removeSecureItem(key: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    await AsyncStorage.removeItem(key);
+    return;
+  }
+
   const safeKey = sanitizeKey(key);
   try {
     await SecureStore.deleteItemAsync(safeKey);

@@ -21,7 +21,7 @@ import { useCustomAlert } from '@/context/AlertContext';
 
 import { authenticatedRequest, refresh } from '@/services/auth';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.pohinc.com.br';
 
 export default function VerifyEmailCodeScreen() {
   const { theme } = useTheme();

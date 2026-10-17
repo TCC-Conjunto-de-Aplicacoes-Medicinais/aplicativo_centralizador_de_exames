@@ -124,7 +124,7 @@ export async function authorizeConsent(id: string): Promise<ConsentItem> {
 
   // 3. Notifica o backend centralizador para registrar log de auditoria no Cassandra
   try {
-    const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+    const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.pohinc.com.br';
     if (apiBaseUrl) {
       await authenticatedRequest(`${apiBaseUrl}/api/exams/share`, {
         method: 'POST',

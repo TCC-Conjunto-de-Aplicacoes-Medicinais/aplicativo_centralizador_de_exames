@@ -10,7 +10,8 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
-  } from 'react-native';
+  Platform,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Search, Upload, FileText, ChevronDown, Check, X, Calendar, ShieldCheck, ChevronRight } from 'lucide-react-native';
 import { useTheme, ThemeColors } from '@/context/ThemeContext';
@@ -163,11 +164,19 @@ export default function Home() {
       const examDateStr = `${year}-${formattedMonth}-${formattedDay}`;
 
       const formData = new FormData();
-      formData.append('file', {
-        uri: selectedFile.uri,
-        name: selectedFile.name,
-        type: selectedFile.mimeType || 'application/pdf',
-      } as any);
+      if (Platform.OS === 'web' && (selectedFile as any).file instanceof File) {
+        formData.append('file', (selectedFile as any).file, selectedFile.name);
+      } else if (Platform.OS === 'web') {
+        const res = await fetch(selectedFile.uri);
+        const blob = await res.blob();
+        formData.append('file', blob, selectedFile.name);
+      } else {
+        formData.append('file', {
+          uri: selectedFile.uri,
+          name: selectedFile.name,
+          type: selectedFile.mimeType || 'application/pdf',
+        } as any);
+      }
 
       formData.append('date', examDateStr);
       formData.append('exam_type', selectedExamType);

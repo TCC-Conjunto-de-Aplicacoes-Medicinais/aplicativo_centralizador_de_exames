@@ -47,7 +47,7 @@ import { authenticatedRequest, logout, refresh } from '@/services/auth';
 import LegalTermsModal from '@/components/LegalTermsModal';
 
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.pohinc.com.br';
 const ACCESS_TOKEN_KEY = '@auth_access_token';
 
 // --- Utilitários ---

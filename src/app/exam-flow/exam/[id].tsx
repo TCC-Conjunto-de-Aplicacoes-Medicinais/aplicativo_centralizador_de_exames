@@ -40,7 +40,7 @@ import { useTheme, ThemeColors } from '@/context/ThemeContext';
 import { useCustomAlert } from '@/context/AlertContext';
 import { authenticatedRequest } from '@/services/auth';
 import { authenticateUser } from '@/security/signer';
-import { getExamByID, downloadExamFileNative, deleteExam } from '@/services/exams';
+import { getExamByID, downloadExamFileNative, downloadExamFileBuffer, deleteExam } from '@/services/exams';
 import { createDirectConsent } from '@/services/consents';
 import { MedicalExam, ExamType, ExamTypeLabels } from '@/types/exam-flow-types';
 
@@ -171,7 +171,8 @@ export default function ExamDetails() {
 
     try {
       // 1. Notifica o backend centralizador para registrar o compartilhamento e auditoria
-      const shareUrl = `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/exams/share`;
+      const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.pohinc.com.br';
+      const shareUrl = `${apiBase}/api/exams/share`;
       await authenticatedRequest(shareUrl, {
         method: 'POST',
         data: {
@@ -210,6 +211,14 @@ export default function ExamDetails() {
 
     setIsOpeningPDF(true);
     try {
+      if (Platform.OS === 'web') {
+        const { buffer, contentType } = await downloadExamFileBuffer(exam.fileUrl);
+        const blob = new Blob([buffer], { type: contentType || 'application/pdf' });
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, '_blank');
+        return;
+      }
+
       console.log('[OPEN_PDF] Baixando arquivo para cache:', exam.fileUrl);
       const safeFilename = (exam.filename || `exame_${exam.id}`).replace(/[^a-zA-Z0-9._-]/g, '_');
 
@@ -269,8 +278,24 @@ export default function ExamDetails() {
 
     setIsDownloadingFile(true);
     try {
-      console.log('[DOWNLOAD] Baixando arquivo:', exam.fileUrl);
       const safeFilename = (exam.filename || `exame_${exam.id}`).replace(/[^a-zA-Z0-9._-]/g, '_');
+
+      if (Platform.OS === 'web') {
+        const { buffer, contentType } = await downloadExamFileBuffer(exam.fileUrl);
+        const blob = new Blob([buffer], { type: contentType || 'application/pdf' });
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = safeFilename.endsWith('.pdf') ? safeFilename : `${safeFilename}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+        showAlert('Download Concluído ✓', `O arquivo "${safeFilename}" foi baixado com sucesso.`);
+        return;
+      }
+
+      console.log('[DOWNLOAD] Baixando arquivo:', exam.fileUrl);
 
       // Baixa o arquivo para a pasta de cache temporária primeiro
       const tempCacheFile = new FSFile(Paths.cache, `download_${safeFilename}`);
