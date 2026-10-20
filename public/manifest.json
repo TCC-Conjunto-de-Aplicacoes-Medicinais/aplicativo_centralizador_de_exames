@@ -1,0 +1,15 @@
+{
+  "name": "POHINC - Meus Exames",
+  "short_name": "POHINC",
+  "description": "Controle do seu histórico clínico e dos seus consentimentos.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#E6F4FE",
+  "theme_color": "#208AEF",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

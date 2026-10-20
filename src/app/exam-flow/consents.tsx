@@ -333,15 +333,6 @@ export default function ConsentsScreen() {
                   </View>
                 </View>
 
-                {/* Selo Criptográfico de Hardware DPoP */}
-                {item.dpopSignature ? (
-                  <View style={styles.hardwareBadge}>
-                    <KeyRound color="#059669" size={14} />
-                    <Text style={styles.hardwareBadgeText}>
-                      Assinatura DPoP Keystore: {item.dpopSignature}
-                    </Text>
-                  </View>
-                ) : null}
 
                 {/* Ações */}
                 <View style={styles.actionsRow}>

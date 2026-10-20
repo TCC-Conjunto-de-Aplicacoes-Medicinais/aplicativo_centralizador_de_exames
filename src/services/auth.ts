@@ -129,7 +129,6 @@ export async function login(cpf: string, password: string, rememberMe: boolean =
     });
 
     const loginData = response.data;
-    console.log(loginData)
 
     // Armazena tokens de forma segura
     const expiresAt = Date.now() + loginData.expires_in * 1000;
