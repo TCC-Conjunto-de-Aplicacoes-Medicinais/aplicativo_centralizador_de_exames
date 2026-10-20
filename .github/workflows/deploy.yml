@@ -63,7 +63,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy via SSH
+      - name: Checkout Código
+        uses: actions/checkout@v3
+
+      - name: Criar diretório de deploy na VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -71,24 +74,61 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            mkdir -p ~/deploy-app && cd ~/deploy-app
+            mkdir -p ~/deploy-app
 
-            # Cria/atualiza o .env local da VPS
+      - name: Copiar docker-compose.yml para a VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          source: "docker-compose.yml"
+          target: "~/deploy-app"
+
+      - name: Executar Deploy na VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            cd ~/deploy-app
+
+            # 1. Configura variáveis de ambiente locais da VPS
             cat > .env <<EOF
             DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
-            APP_PORT=${{ secrets.APP_PORT || '8081' }}
+            APP_PORT=${{ secrets.APP_PORT != '' && secrets.APP_PORT || '8081' }}
             EOF
 
-            # Baixa o docker-compose.yml atualizado do repositório
-            curl -sL -H "Authorization: token ${{ secrets.GH_PAT }}" \
-              "https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.yml" \
-              -o docker-compose.yml
+            # 2. Autentica no Docker Hub se as credenciais estiverem preenchidas (necessário para imagens privadas)
+            if [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+              echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+            fi
 
-            # Puxa a imagem mais recente do aplicativo
+            # 3. Puxa a imagem atualizada
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/pohinc-app:latest
 
-            # Reinicia os contêineres usando o compose
-            docker compose --env-file .env up -d
+            # 4. Detecta se usa 'docker compose' (v2 plugin) ou 'docker-compose' (v1/standalone)
+            if docker compose version >/dev/null 2>&1; then
+              COMPOSE="docker compose"
+            elif command -v docker-compose >/dev/null 2>&1; then
+              COMPOSE="docker-compose"
+            else
+              echo "ERRO: Nem 'docker compose' nem 'docker-compose' foram encontrados na VPS!"
+              exit 1
+            fi
 
-            # Limpa imagens órfãs
+            echo "Utilizando: \$COMPOSE"
+
+            # 5. Sobe o container
+            \$COMPOSE up -d --remove-orphans
+
+            # 6. Exibe status e logs em caso de erro
+            sleep 3
+            docker ps --filter "name=pohinc_app_web"
+            
+            # Limpa imagens antigas não utilizadas
             docker image prune -f
+
