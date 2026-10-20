@@ -287,6 +287,11 @@ export default function LoginScreen() {
                   </TouchableOpacity>
                 </View>
 
+                {/* Recuperação da passkey (perda de aparelho) */}
+                <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/passkey-recovery')}>
+                  <Text style={styles.signupLink}>Perdi o acesso à passkey</Text>
+                </TouchableOpacity>
+
                 {/* Rodapé com Termos e Privacidade */}
                 <TouchableOpacity 
                   activeOpacity={0.7} 

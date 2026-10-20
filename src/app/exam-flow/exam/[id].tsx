@@ -161,16 +161,17 @@ export default function ExamDetails() {
   const handleShareWithDoctor = async (doctorName: string) => {
     if (!exam || !doctorName) return;
 
-    // Confirmação biométrica / senha local do celular
-    const authenticated = await authenticateUser(
-      `Confirme com sua biometria ou senha para compartilhar o exame com ${doctorName}.`
-    );
-    if (!authenticated) {
-      return;
-    }
-
     try {
-      // 1. Notifica o backend centralizador para registrar o compartilhamento e auditoria
+      // 1. Consentimento primeiro: confirma com a assinatura do paciente (passkey na web, biometria no app)
+      await createDirectConsent(
+        doctorName,
+        exam.facility || 'Clínica / Consultório',
+        `Acesso liberado ao exame: ${exam.name}`,
+        30,
+        String(exam.id)
+      );
+
+      // 2. Notifica o backend centralizador para registrar o compartilhamento e auditoria
       const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.pohinc.com.br';
       const shareUrl = `${apiBase}/api/exams/share`;
       await authenticatedRequest(shareUrl, {
@@ -180,16 +181,6 @@ export default function ExamDetails() {
           doctor_name: doctorName,
         },
       });
-
-      // 2. Registra o consentimento no armazenamento descentralizado local (DPoP assinado via hardware)
-      await createDirectConsent(
-        doctorName,
-        exam.facility || 'Clínica / Consultório',
-        `Acesso liberado ao exame: ${exam.name}`,
-        30,
-        true, // skipAuth: já autenticado com biometria acima
-        String(exam.id)
-      );
 
       showAlert('Sucesso', `Exame compartilhado com ${doctorName} com sucesso!`);
       setSelectedDoctor('');

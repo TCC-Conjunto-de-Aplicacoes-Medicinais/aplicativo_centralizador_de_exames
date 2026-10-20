@@ -11,6 +11,8 @@
       "visible": "immersive"
     },
     "ios": {
+      "bundleIdentifier": "com.mzoletti.appcentralizadordeexames",
+      "associatedDomains": ["webcredentials:app.pohinc.com.br"],
       "icon": "./assets/expo.icon",
       "infoPlist": {
         "NSFaceIDUsageDescription": "Permitir autenticação para acessar seus dados."
@@ -46,7 +48,14 @@
           }
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-build-properties",
+        {
+          "ios": { "deploymentTarget": "15.1" },
+          "android": { "compileSdkVersion": 34 }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

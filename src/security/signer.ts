@@ -1,11 +1,11 @@
 import { Platform } from 'react-native';
 
-// automatic import of the correct signer implementation based on the platform
+// Web usa signer.web (sem simulação). Nativo (dev e produção) usa biometria do aparelho.
 const signer =
-  Platform.OS === 'web' || __DEV__
-    ? require('./signer.dev')
+  Platform.OS === 'web'
+    ? require('./signer.web')
     : require('./signer.native');
 
 export const createKeys = signer.createKeys;
 export const sign = signer.sign;
-export const authenticateUser = signer.authenticateUser;
+export const authenticateUser = signer.authenticateUser;

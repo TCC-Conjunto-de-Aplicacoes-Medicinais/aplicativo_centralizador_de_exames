@@ -1,14 +1,6 @@
-import * as Crypto from 'expo-crypto';
 import ReactNativeBiometrics from 'react-native-biometrics';
 
 const rnBiometrics = new ReactNativeBiometrics({ allowDeviceCredentials: true });
-
-const fallbackSignature = async (payload: string) => {
-  return await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    payload
-  );
-};
 
 export const createKeys = async () => {
   try {
@@ -45,8 +37,8 @@ export const sign = async (payload: string) => {
 
     throw new Error('Autenticação biométrica cancelada ou não reconhecida.');
   } catch (err) {
-    console.warn('[signer.native] createSignature falhou, utilizando fallback:', err);
-    return fallbackSignature(payload);
+    console.warn('[signer.native] createSignature falhou (assinatura não gerada):', err);
+    throw err;
   }
 };
 
