@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  pohinc-app:
+    image: ${DOCKERHUB_USERNAME}/pohinc-app:latest
+    container_name: pohinc_app_web
+    restart: always
+    ports:
+      - "${APP_PORT:-8081}:80"
+    deploy:
+      resources:
+        limits:
+          memory: 128M

@@ -1,0 +1,94 @@
+name: App PWA CI/CD
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build-and-check:
+    name: Build and Check Web Export
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Código
+        uses: actions/checkout@v3
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22
+
+      - name: Instalar Dependências
+        run: npm install --legacy-peer-deps
+
+      - name: Testar Exportação Web Estática (PWA)
+        env:
+          EXPO_PUBLIC_API_BASE_URL: https://api.pohinc.com.br
+          EXPO_PUBLIC_ENABLE_DEV_MENU: "false"
+        run: npx expo export --platform web
+
+  build-and-push:
+    name: Build and Push Docker Image
+    needs: build-and-check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Código
+        uses: actions/checkout@v3
+
+      - name: Login no Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build e Push da Imagem Docker PWA
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          build-args: |
+            EXPO_PUBLIC_API_BASE_URL=https://api.pohinc.com.br
+            EXPO_PUBLIC_ENABLE_DEV_MENU=false
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/pohinc-app:latest
+
+  deploy:
+    name: Deploy to VPS
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            mkdir -p ~/deploy-app && cd ~/deploy-app
+
+            # Cria/atualiza o .env local da VPS
+            cat > .env <<EOF
+            DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+            APP_PORT=${{ secrets.APP_PORT || '8081' }}
+            EOF
+
+            # Baixa o docker-compose.yml atualizado do repositório
+            curl -sL -H "Authorization: token ${{ secrets.GH_PAT }}" \
+              "https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.yml" \
+              -o docker-compose.yml
+
+            # Puxa a imagem mais recente do aplicativo
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/pohinc-app:latest
+
+            # Reinicia os contêineres usando o compose
+            docker compose --env-file .env up -d
+
+            # Limpa imagens órfãs
+            docker image prune -f

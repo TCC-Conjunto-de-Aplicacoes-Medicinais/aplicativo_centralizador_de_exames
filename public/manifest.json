@@ -1,4 +1,5 @@
 {
+  "id": "br.com.pohinc.app",
   "name": "POHINC - Meus Exames",
   "short_name": "POHINC",
   "description": "Controle do seu histórico clínico e dos seus consentimentos.",
@@ -9,7 +10,19 @@
   "background_color": "#E6F4FE",
   "theme_color": "#208AEF",
   "lang": "pt-BR",
+  "categories": ["medical", "health"],
   "icons": [
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }
