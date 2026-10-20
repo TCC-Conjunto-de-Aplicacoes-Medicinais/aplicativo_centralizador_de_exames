@@ -110,25 +110,23 @@ jobs:
             # 3. Puxa a imagem atualizada
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/pohinc-app:latest
 
-            # 4. Detecta se usa 'docker compose' (v2 plugin) ou 'docker-compose' (v1/standalone)
+            # 4. Sobe o container detectando 'docker compose' (v2 plugin) ou 'docker-compose' (v1/standalone)
             if docker compose version >/dev/null 2>&1; then
-              COMPOSE="docker compose"
+              echo "Utilizando: docker compose (v2)"
+              docker compose up -d --remove-orphans
             elif command -v docker-compose >/dev/null 2>&1; then
-              COMPOSE="docker-compose"
+              echo "Utilizando: docker-compose (standalone)"
+              docker-compose up -d --remove-orphans
             else
               echo "ERRO: Nem 'docker compose' nem 'docker-compose' foram encontrados na VPS!"
               exit 1
             fi
 
-            echo "Utilizando: \$COMPOSE"
-
-            # 5. Sobe o container
-            \$COMPOSE up -d --remove-orphans
-
-            # 6. Exibe status e logs em caso de erro
+            # 5. Exibe status do container em execução
             sleep 3
             docker ps --filter "name=pohinc_app_web"
-            
-            # Limpa imagens antigas não utilizadas
+
+            # 6. Limpa imagens antigas não utilizadas
             docker image prune -f
+
 
