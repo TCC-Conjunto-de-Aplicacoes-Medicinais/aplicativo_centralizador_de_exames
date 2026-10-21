@@ -20,6 +20,8 @@ export default function LegalTermsModal({ visible, onClose }: LegalTermsModalPro
   const { theme, isDarkMode } = useTheme();
   const styles = getStyles(theme, isDarkMode);
 
+  if (!visible) return null;
+
   return (
     <Modal
       animationType="slide"

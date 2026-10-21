@@ -11,6 +11,7 @@ import {
   TouchableWithoutFeedback,
   StatusBar,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -48,6 +49,7 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [legalVisible, setLegalVisible] = useState(false);
+  const cpfRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -135,11 +137,19 @@ export default function LoginScreen() {
     >
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.flex}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContainer,
+            { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 24) },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          <View style={styles.container}>
 
             {/* Botão Dev — apenas visível na branch dev quando ativado */}
             {isDevEnabled && (
@@ -195,7 +205,9 @@ export default function LoginScreen() {
                 style={styles.formSection}
               >
                 {/* Campo CPF */}
-                <View
+                <TouchableOpacity
+                  activeOpacity={1}
+                  onPress={() => cpfRef.current?.focus()}
                   style={[
                     styles.inputWrapper,
                     cpfFocused && styles.inputWrapperFocused,
@@ -203,6 +215,7 @@ export default function LoginScreen() {
                 >
                   <Text style={styles.inputLabel}>CPF</Text>
                   <TextInput
+                    ref={cpfRef}
                     style={styles.input}
                     placeholder="000.000.000-00"
                     placeholderTextColor="rgba(255,255,255,0.4)"
@@ -217,10 +230,12 @@ export default function LoginScreen() {
                     onBlur={() => setCpfFocused(false)}
                     maxLength={14}
                   />
-                </View>
+                </TouchableOpacity>
 
                 {/* Campo Senha */}
-                <View
+                <TouchableOpacity
+                  activeOpacity={1}
+                  onPress={() => passwordRef.current?.focus()}
                   style={[
                     styles.inputWrapper,
                     passwordFocused && styles.inputWrapperFocused,
@@ -240,7 +255,7 @@ export default function LoginScreen() {
                     onFocus={() => setPasswordFocused(true)}
                     onBlur={() => setPasswordFocused(false)}
                   />
-                </View>
+                </TouchableOpacity>
 
                 {/* Link esqueceu senha */}
                 <View style={styles.optionsRow}>
@@ -306,7 +321,7 @@ export default function LoginScreen() {
             </View>
 
           </View>
-        </TouchableWithoutFeedback>
+        </ScrollView>
       </KeyboardAvoidingView>
 
       <LegalTermsModal
@@ -324,6 +339,10 @@ const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   container: {
     flex: 1,

@@ -25,6 +25,9 @@ RUN npx expo export --platform web
 # ---- Runtime Stage ----
 FROM nginx:1.27-alpine
 
+# Copia configuração otimizada do Nginx com fallback SPA
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
 # Copia a aplicação compilada estática para o diretório padrão do Nginx
 COPY --from=builder /app/dist /usr/share/nginx/html
 

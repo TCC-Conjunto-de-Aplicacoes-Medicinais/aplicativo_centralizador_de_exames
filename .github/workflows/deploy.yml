@@ -52,7 +52,7 @@ jobs:
           file: ./Dockerfile
           push: true
           build-args: |
-            EXPO_PUBLIC_API_BASE_URL=https://api.pohinc.com.br
+            EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8002
             EXPO_PUBLIC_ENABLE_DEV_MENU=false
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/pohinc-app:latest
 
