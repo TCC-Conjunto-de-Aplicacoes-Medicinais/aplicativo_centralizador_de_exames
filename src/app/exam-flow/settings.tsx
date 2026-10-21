@@ -45,9 +45,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { authenticatedRequest, logout, refresh } from '@/services/auth';
 import LegalTermsModal from '@/components/LegalTermsModal';
+import { API_BASE_URL } from '@/constants/api';
 
-
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.pohinc.com.br';
 const ACCESS_TOKEN_KEY = '@auth_access_token';
 
 // --- Utilitários ---

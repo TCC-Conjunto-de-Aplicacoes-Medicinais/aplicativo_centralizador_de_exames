@@ -7,6 +7,8 @@ services:
     restart: always
     ports:
       - "${APP_PORT:-8081}:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     deploy:
       resources:
         limits:

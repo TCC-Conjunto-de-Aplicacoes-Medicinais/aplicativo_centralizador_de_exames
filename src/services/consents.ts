@@ -12,8 +12,8 @@
 
 import { authenticatedRequest } from '@/services/auth';
 import { confirmWithPasskey } from '@/services/passkey';
+import { API_BASE_URL } from '@/constants/api';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.pohinc.com.br';
 const CLINICAL_READ_SCOPE = 'clinical_history_read';
 
 export type ConsentStatus = 'pending' | 'active' | 'revoked';

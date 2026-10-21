@@ -42,6 +42,7 @@ import { authenticatedRequest } from '@/services/auth';
 import { authenticateUser } from '@/security/signer';
 import { getExamByID, downloadExamFileNative, downloadExamFileBuffer, deleteExam } from '@/services/exams';
 import { createDirectConsent } from '@/services/consents';
+import { API_BASE_URL } from '@/constants/api';
 import { MedicalExam, ExamType, ExamTypeLabels } from '@/types/exam-flow-types';
 
 const examTypeIcons: Record<string, any> = {
@@ -172,8 +173,7 @@ export default function ExamDetails() {
       );
 
       // 2. Notifica o backend centralizador para registrar o compartilhamento e auditoria
-      const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.pohinc.com.br';
-      const shareUrl = `${apiBase}/api/exams/share`;
+      const shareUrl = `${API_BASE_URL}/api/exams/share`;
       await authenticatedRequest(shareUrl, {
         method: 'POST',
         data: {

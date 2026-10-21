@@ -3,8 +3,7 @@ import { MedicalExam, ExamType } from '../types/exam-flow-types';
 import axios from 'axios';
 import { createDPoPProof } from '@/security/dpop';
 import { File as FSFile } from 'expo-file-system';
-
-const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.pohinc.com.br';
+import { API_BASE_URL } from '@/constants/api';
 
 function getExamName(linkBucket: string, examType: string): string {
   if (!linkBucket) return examType;
@@ -37,11 +36,7 @@ function mapBackendExamToMedicalExam(exam: any): MedicalExam {
  * A requisição é autenticada e assinada com prova DPoP.
  */
 export async function uploadExam(formData: FormData): Promise<any> {
-  if (!apiBaseUrl) {
-    throw new Error('Variável de ambiente EXPO_PUBLIC_API_BASE_URL não está configurada.');
-  }
-
-  return authenticatedRequest(`${apiBaseUrl}/api/exams`, {
+  return authenticatedRequest(`${API_BASE_URL}/api/exams`, {
     method: 'POST',
     data: formData,
     headers: {
@@ -54,11 +49,7 @@ export async function uploadExam(formData: FormData): Promise<any> {
  * Retorna todos os exames ativos do paciente logado.
  */
 export async function getExams(): Promise<MedicalExam[]> {
-  if (!apiBaseUrl) {
-    throw new Error('Variável de ambiente EXPO_PUBLIC_API_BASE_URL não está configurada.');
-  }
-
-  const rawExams = await authenticatedRequest<any[]>(`${apiBaseUrl}/api/exams`, {
+  const rawExams = await authenticatedRequest<any[]>(`${API_BASE_URL}/api/exams`, {
     method: 'GET',
   });
 
@@ -69,11 +60,7 @@ export async function getExams(): Promise<MedicalExam[]> {
  * Retorna os detalhes de um exame específico, incluindo a URL autenticada do arquivo.
  */
 export async function getExamByID(id: string): Promise<MedicalExam> {
-  if (!apiBaseUrl) {
-    throw new Error('Variável de ambiente EXPO_PUBLIC_API_BASE_URL não está configurada.');
-  }
-
-  const rawExam = await authenticatedRequest<any>(`${apiBaseUrl}/api/exams/${id}`, {
+  const rawExam = await authenticatedRequest<any>(`${API_BASE_URL}/api/exams/${id}`, {
     method: 'GET',
   });
 
@@ -91,7 +78,7 @@ export async function getExamByID(id: string): Promise<MedicalExam> {
       filename = decodeURIComponent(rawFilename);
       // Garante que o filename na URL esteja devidamente codificado (ex: espaço -> %20)
       const encodedFilename = encodeURIComponent(filename);
-      fileUrl = `${apiBaseUrl}/api/exams/file/${rawExamId}/${encodedFilename}`;
+      fileUrl = `${API_BASE_URL}/api/exams/file/${rawExamId}/${encodedFilename}`;
     }
   }
 
@@ -149,11 +136,7 @@ export async function downloadExamFileNative(
  * Exclui (soft delete) um exame específico do paciente autenticado.
  */
 export async function deleteExam(id: string): Promise<any> {
-  if (!apiBaseUrl) {
-    throw new Error('Variável de ambiente EXPO_PUBLIC_API_BASE_URL não está configurada.');
-  }
-
-  return authenticatedRequest(`${apiBaseUrl}/api/exams/${id}`, {
+  return authenticatedRequest(`${API_BASE_URL}/api/exams/${id}`, {
     method: 'DELETE',
   });
 }

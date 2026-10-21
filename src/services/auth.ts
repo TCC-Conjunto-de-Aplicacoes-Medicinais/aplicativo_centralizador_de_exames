@@ -14,9 +14,9 @@ import { getSecureItem, setSecureItem, removeSecureItem } from '@/security/stora
 import * as Device from 'expo-device';
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { createDPoPProof, clearDPoPKeys, exportPublicJWK } from '@/security/dpop';
+import { API_BASE_URL } from '@/constants/api';
 
 // --- Configuração ---
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.pohinc.com.br';
 const SIGNUP_ENDPOINT = `${API_BASE_URL}/api/signup`;
 const LOGIN_ENDPOINT = `${API_BASE_URL}/api/login`;
 const REFRESH_ENDPOINT = `${API_BASE_URL}/api/refresh`;

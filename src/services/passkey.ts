@@ -6,8 +6,7 @@
 import { create, get } from 'react-native-passkeys';
 import { isAxiosError } from 'axios';
 import { authenticatedRequest } from '@/services/auth';
-
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.pohinc.com.br';
+import { API_BASE_URL } from '@/constants/api';
 
 interface PasskeyChallenge {
   challenge_id: string;
