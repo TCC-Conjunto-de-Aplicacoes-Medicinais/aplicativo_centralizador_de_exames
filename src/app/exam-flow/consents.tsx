@@ -27,6 +27,7 @@ import {
 } from 'lucide-react-native';
 
 import { useTheme, ThemeColors } from '@/context/ThemeContext';
+import AccessCodeCard from '@/components/AccessCodeCard';
 import { useCustomAlert } from '@/context/AlertContext';
 import {
   getConsents,
@@ -177,6 +178,8 @@ export default function ConsentsScreen() {
           />
         }
       >
+
+        <AccessCodeCard />
 
         {/* Resumo / Métricas Rápidas */}
         <View style={styles.statsRow}>
