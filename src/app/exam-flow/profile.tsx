@@ -5,13 +5,13 @@ import { useTheme } from '@/context/ThemeContext';
 import { authenticatedRequest } from '@/services/auth';
 import { API_BASE_URL } from '@/constants/api';
 
-type Profile = { name: string; cpf: string; phone: string; insurance: string; blood_type: string; allergies: string };
+type Profile = { name: string; cpf: string; birth_date: string; phone: string; insurance: string; blood_type: string; allergies: string };
 
 /** Cadastro do paciente: telefone, convênio, tipo sanguíneo e alergias. A clínica recebe estes dados pelo centralizador. */
 export default function ProfileScreen() {
   const { theme } = useTheme();
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [form, setForm] = useState({ phone: '', insurance: '', blood_type: '', allergies: '' });
+  const [form, setForm] = useState({ birth_date: '', phone: '', insurance: '', blood_type: '', allergies: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -20,7 +20,7 @@ export default function ProfileScreen() {
     authenticatedRequest<Profile>(`${API_BASE_URL}/api/patients/me`)
       .then((p) => {
         setProfile(p);
-        setForm({ phone: p.phone || '', insurance: p.insurance || '', blood_type: p.blood_type || '', allergies: p.allergies || '' });
+        setForm({ birth_date: p.birth_date || '', phone: p.phone || '', insurance: p.insurance || '', blood_type: p.blood_type || '', allergies: p.allergies || '' });
       })
       .catch(() => setMessage('Não foi possível carregar o cadastro.'))
       .finally(() => setLoading(false));
@@ -40,6 +40,7 @@ export default function ProfileScreen() {
   };
 
   const fields: Array<{ key: keyof typeof form; label: string; hint?: string }> = [
+    { key: 'birth_date', label: 'Data de nascimento', hint: 'AAAA-MM-DD' },
     { key: 'phone', label: 'Telefone' },
     { key: 'insurance', label: 'Convênio' },
     { key: 'blood_type', label: 'Tipo sanguíneo', hint: 'ex.: O+' },
