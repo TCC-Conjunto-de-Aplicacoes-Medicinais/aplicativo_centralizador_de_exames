@@ -50,18 +50,39 @@ export async function uploadExam(formData: FormData): Promise<any> {
 /**
  * Retorna todos os exames ativos do paciente logado.
  */
+/** Laudos e exames que as clínicas enviaram sobre o paciente (ids com prefixo "clinic-"). */
+async function getClinicRecords(): Promise<MedicalExam[]> {
+  const list = await authenticatedRequest<any[]>(`${API_BASE_URL}/api/patients/me/clinic-records`, { method: 'GET' });
+  return (list || []).map((r) => ({
+    id: `clinic-${r.id}`,
+    name: r.title,
+    date: r.date,
+    type: ExamType.OTHER,
+    status: 'completed' as const,
+    facility: r.provider || undefined,
+    results: r.conclusion || undefined,
+  }));
+}
+
 export async function getExams(): Promise<MedicalExam[]> {
   const rawExams = await authenticatedRequest<any[]>(`${API_BASE_URL}/api/exams`, {
     method: 'GET',
   });
-
-  return (rawExams || []).map(mapBackendExamToMedicalExam);
+  // Se o histórico da clínica não carregar, a lista de exames do paciente continua aparecendo.
+  const clinic = await getClinicRecords().catch(() => []);
+  return [...clinic, ...(rawExams || []).map(mapBackendExamToMedicalExam)];
 }
 
 /**
  * Retorna os detalhes de um exame específico, incluindo a URL autenticada do arquivo.
  */
 export async function getExamByID(id: string): Promise<MedicalExam> {
+  if (id.startsWith('clinic-')) {
+    const clinic = await getClinicRecords();
+    const found = clinic.find((e) => e.id === id);
+    if (!found) throw new Error('Laudo não encontrado');
+    return found;
+  }
   const rawExam = await authenticatedRequest<any>(`${API_BASE_URL}/api/exams/${id}`, {
     method: 'GET',
   });
