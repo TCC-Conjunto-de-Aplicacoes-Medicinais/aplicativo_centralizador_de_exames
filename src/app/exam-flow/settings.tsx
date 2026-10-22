@@ -633,6 +633,12 @@ export default function SettingsScreen() {
       <SectionHeader icon={Shield} title="Privacidade & Consentimentos" delay={550} />
       <Animated.View entering={FadeInDown.delay(600).duration(500)} style={styles.card}>
         <SettingRow
+          icon={User}
+          label="Meu Cadastro (convênio, tipo sanguíneo)"
+          onPress={() => router.push('/exam-flow/profile')}
+        />
+        <View style={styles.divider} />
+                <SettingRow
           icon={ShieldCheck}
           label="Gestão de Consentimentos (DPoP)"
           value="Soberania do Paciente"
