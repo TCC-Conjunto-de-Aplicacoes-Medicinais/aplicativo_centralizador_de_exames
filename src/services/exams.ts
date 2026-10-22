@@ -1,9 +1,10 @@
-import { authenticatedRequest, getToken } from './auth';
+import { authenticatedRequest, getToken, refresh } from './auth';
 import { MedicalExam, ExamType } from '../types/exam-flow-types';
 import axios from 'axios';
 import { createDPoPProof } from '@/security/dpop';
 import { File as FSFile } from 'expo-file-system';
 import { API_BASE_URL } from '@/constants/api';
+import { Platform } from 'react-native';
 
 function getExamName(linkBucket: string, examType: string): string {
   if (!linkBucket) return examType;
@@ -36,12 +37,13 @@ function mapBackendExamToMedicalExam(exam: any): MedicalExam {
  * A requisição é autenticada e assinada com prova DPoP.
  */
 export async function uploadExam(formData: FormData): Promise<any> {
+  // Na Web, o axios/navegador gera o boundary do multipart/form-data automaticamente.
+  const headers = Platform.OS === 'web' ? {} : { 'Content-Type': 'multipart/form-data' };
+
   return authenticatedRequest(`${API_BASE_URL}/api/exams`, {
     method: 'POST',
     data: formData,
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+    headers,
   });
 }
 
@@ -88,48 +90,83 @@ export async function getExamByID(id: string): Promise<MedicalExam> {
 
 /**
  * Faz o download do arquivo do exame de forma autenticada (com DPoP).
+ * Implementa retry com renovação automática de token se receber 401.
  * Retorna um ArrayBuffer com os bytes do arquivo e o content-type.
  */
 export async function downloadExamFileBuffer(
   fileUrl: string
 ): Promise<{ buffer: ArrayBuffer; contentType: string }> {
-  const token = await getToken();
-  if (!token) throw new Error('Não autenticado');
+  const executeDownload = async () => {
+    const token = await getToken();
+    if (!token) throw new Error('Não autenticado');
 
-  const dpopProof = await createDPoPProof('GET', fileUrl);
+    const dpopProof = await createDPoPProof('GET', fileUrl);
 
-  const response = await axios.get(fileUrl, {
-    responseType: 'arraybuffer',
-    headers: {
-      Authorization: `DPoP ${token}`,
-      DPoP: dpopProof,
-    },
-  });
+    const response = await axios.get(fileUrl, {
+      responseType: 'arraybuffer',
+      headers: {
+        Authorization: `DPoP ${token}`,
+        DPoP: dpopProof,
+      },
+    });
 
-  const rawContentType = response.headers['content-type'];
-  const contentType: string = (typeof rawContentType === 'string' ? rawContentType : null) || 'application/octet-stream';
-  return { buffer: response.data as ArrayBuffer, contentType };
+    const rawContentType = response.headers['content-type'];
+    const contentType: string =
+      (typeof rawContentType === 'string' ? rawContentType : null) || 'application/pdf';
+    return { buffer: response.data as ArrayBuffer, contentType };
+  };
+
+  try {
+    return await executeDownload();
+  } catch (err: any) {
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      console.log('[AUTH] downloadExamFileBuffer retornou 401, tentando refresh + retry...');
+      try {
+        await refresh();
+        return await executeDownload();
+      } catch (retryErr) {
+        console.log('[AUTH] Retry após refresh falhou em downloadExamFileBuffer.');
+        throw retryErr;
+      }
+    }
+    throw err;
+  }
 }
 
 /**
  * Faz o download do arquivo do exame de forma nativa e autenticada (com DPoP) diretamente para o destino.
+ * Implementa retry com renovação automática de token se necessário.
  */
 export async function downloadExamFileNative(
   fileUrl: string,
   destination: FSFile
 ): Promise<FSFile> {
-  const token = await getToken();
-  if (!token) throw new Error('Não autenticado');
+  const executeDownload = async () => {
+    const token = await getToken();
+    if (!token) throw new Error('Não autenticado');
 
-  const dpopProof = await createDPoPProof('GET', fileUrl);
+    const dpopProof = await createDPoPProof('GET', fileUrl);
 
-  return await FSFile.downloadFileAsync(fileUrl, destination, {
-    headers: {
-      Authorization: `DPoP ${token}`,
-      DPoP: dpopProof,
-    },
-    idempotent: true,
-  });
+    return await FSFile.downloadFileAsync(fileUrl, destination, {
+      headers: {
+        Authorization: `DPoP ${token}`,
+        DPoP: dpopProof,
+      },
+      idempotent: true,
+    });
+  };
+
+  try {
+    return await executeDownload();
+  } catch (err: any) {
+    console.log('[AUTH] Falha ao baixar arquivo nativo, tentando refresh...');
+    try {
+      await refresh();
+      return await executeDownload();
+    } catch {
+      throw err;
+    }
+  }
 }
 
 /**

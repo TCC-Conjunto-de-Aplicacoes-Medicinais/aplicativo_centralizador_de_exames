@@ -133,16 +133,15 @@ export async function login(cpf: string, password: string, rememberMe: boolean =
     // Armazena tokens de forma segura
     const expiresAt = Date.now() + loginData.expires_in * 1000;
     
-    // Armazena access token e expiry sempre. Refresh token só se rememberMe for true.
+    // Armazena access token e expiry sempre. O refresh token é mantido para permitir
+    // a renovação silenciosa e contínua da sessão durante o uso (evita erro 401 após 5 minutos).
     const storagePromises = [
       setSecureItem(ACCESS_TOKEN_KEY, loginData.access_token),
       setSecureItem(TOKEN_EXPIRY_KEY, expiresAt.toString()),
     ];
 
-    if (rememberMe && loginData.refresh_token) {
+    if (loginData.refresh_token) {
       storagePromises.push(setSecureItem(REFRESH_TOKEN_KEY, loginData.refresh_token));
-    } else {
-      storagePromises.push(removeSecureItem(REFRESH_TOKEN_KEY));
     }
 
     await Promise.all(storagePromises);
